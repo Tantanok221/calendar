@@ -1,5 +1,9 @@
-import { EVENTS, EVENT_COLORS, isSameDay, toDateStr } from '../data/events'
+import { useState } from 'react'
+import { EVENT_COLORS, isSameDay, toDateStr } from '../data/events'
 import type { CalendarEvent } from '../data/events'
+import { computeAnchor } from '../lib/eventPopoverAnchor'
+import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
+import EventDetailPopover from './EventDetailPopover'
 
 const DOW_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -15,12 +19,29 @@ function getMonthGrid(year: number, month: number): (Date | null)[] {
   return cells
 }
 
-function EventPill({ event }: { event: CalendarEvent }): React.JSX.Element {
+function EventPill({
+  event,
+  selected,
+  onClick
+}: {
+  event: CalendarEvent
+  selected: boolean
+  onClick: (e: React.MouseEvent, ev: CalendarEvent) => void
+}): React.JSX.Element {
   const c = EVENT_COLORS[event.color]
   return (
     <div
       className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-tight truncate cursor-pointer transition-all duration-100 mb-0.5"
-      style={{ background: c.pillBg, color: c.text }}
+      style={{
+        background: selected ? c.pillBg.replace('0.18', '0.32') : c.pillBg,
+        color: c.text,
+        outline: selected ? `1px solid ${c.dot}` : 'none',
+        outlineOffset: -1
+      }}
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick(e, event)
+      }}
       onMouseEnter={(e) => (e.currentTarget.style.filter = 'brightness(1.2)')}
       onMouseLeave={(e) => (e.currentTarget.style.filter = 'none')}
     >
@@ -31,12 +52,14 @@ function EventPill({ event }: { event: CalendarEvent }): React.JSX.Element {
 }
 
 interface MonthViewProps {
+  events: CalendarEvent[]
   currentDate: Date
   today: Date
   onDateSelect: (d: Date) => void
 }
 
 export default function MonthView({
+  events,
   currentDate,
   today,
   onDateSelect
@@ -44,12 +67,43 @@ export default function MonthView({
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
   const cells = getMonthGrid(year, month)
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
+  const [popoverAnchor, setPopoverAnchor] = useState<PopoverAnchor | null>(null)
+  const selectedEvent = events.find((event) => event.id === selectedEventId) ?? null
 
   const eventsForDate = (date: Date): CalendarEvent[] =>
-    EVENTS.filter((e) => e.date === toDateStr(date))
+    events.filter((event) => event.date === toDateStr(date))
+
+  const handleEventClick = (e: React.MouseEvent, event: CalendarEvent): void => {
+    if (selectedEventId === event.id) {
+      setSelectedEventId(null)
+      setPopoverAnchor(null)
+      return
+    }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setPopoverAnchor(computeAnchor(rect))
+    setSelectedEventId(event.id)
+  }
 
   return (
-    <div className="flex flex-col h-full" style={{ background: 'var(--bg)' }}>
+    <div
+      className="flex flex-col h-full"
+      style={{ background: 'var(--bg)' }}
+      onClick={() => {
+        setSelectedEventId(null)
+        setPopoverAnchor(null)
+      }}
+    >
+      {selectedEvent && popoverAnchor && (
+        <EventDetailPopover
+          event={selectedEvent}
+          anchor={popoverAnchor}
+          onClose={() => {
+            setSelectedEventId(null)
+            setPopoverAnchor(null)
+          }}
+        />
+      )}
       {/* Day-of-week header */}
       <div
         className="grid shrink-0"
@@ -118,7 +172,12 @@ export default function MonthView({
                   {/* Events */}
                   <div>
                     {shown.map((e) => (
-                      <EventPill key={e.id} event={e} />
+                      <EventPill
+                        key={e.id}
+                        event={e}
+                        selected={selectedEventId === e.id}
+                        onClick={handleEventClick}
+                      />
                     ))}
                     {extra > 0 && (
                       <div

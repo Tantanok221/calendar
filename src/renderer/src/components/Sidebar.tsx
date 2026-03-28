@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { CaretLeft, CaretRight, Plus } from '@phosphor-icons/react'
-import { CALENDARS, EVENTS, EVENT_COLORS, getWeekStart, isSameDay } from '../data/events'
+import { CALENDARS, EVENT_COLORS, getWeekStart, isSameDay } from '../data/events'
+import type { CalendarEvent } from '../data/events'
 import type { ViewType } from './TopBar'
 import NewEventPopover from './NewEventPopover'
 
@@ -18,9 +19,9 @@ function getMiniGrid(year: number, month: number): (number | null)[] {
   return cells
 }
 
-function datesForEventDots(year: number, month: number): Set<number> {
+function datesForEventDots(events: CalendarEvent[], year: number, month: number): Set<number> {
   const s = new Set<number>()
-  EVENTS.forEach((e) => {
+  events.forEach((e) => {
     const [y, m, d] = e.date.split('-').map(Number)
     if (y === year && m === month + 1) s.add(d)
   })
@@ -28,6 +29,7 @@ function datesForEventDots(year: number, month: number): Set<number> {
 }
 
 interface MiniCalendarProps {
+  events: CalendarEvent[]
   currentDate: Date
   today: Date
   view: ViewType
@@ -35,6 +37,7 @@ interface MiniCalendarProps {
 }
 
 function MiniCalendar({
+  events,
   currentDate,
   today,
   view,
@@ -44,7 +47,7 @@ function MiniCalendar({
   const [miniMonth, setMiniMonth] = useState(currentDate.getMonth())
 
   const cells = getMiniGrid(miniYear, miniMonth)
-  const eventDays = datesForEventDots(miniYear, miniMonth)
+  const eventDays = datesForEventDots(events, miniYear, miniMonth)
   const weekStart = getWeekStart(currentDate)
 
   const navMonth = (dir: 1 | -1): void => {
@@ -156,6 +159,7 @@ function MiniCalendar({
 }
 
 interface SidebarProps {
+  events: CalendarEvent[]
   currentDate: Date
   today: Date
   view: ViewType
@@ -163,6 +167,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({
+  events,
   currentDate,
   today,
   view,
@@ -214,6 +219,7 @@ export default function Sidebar({
 
       {/* Mini calendar */}
       <MiniCalendar
+        events={events}
         currentDate={currentDate}
         today={today}
         view={view}
