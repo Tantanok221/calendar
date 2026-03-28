@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Popover from '@radix-ui/react-popover'
-import { X, CalendarBlank, Clock, CaretDown, CaretLeft, CaretRight } from '@phosphor-icons/react'
+import { X, CalendarBlank, Clock, CaretDown, CaretLeft, CaretRight, Repeat } from '@phosphor-icons/react'
 import { cn } from '../lib/utils'
 import { getClosestTimeSuggestion, getTimeSuggestions } from '../lib/timeSuggestions'
 import { CALENDARS, EVENT_COLORS, isSameDay } from '../data/events'
-import type { EventColor, CalendarName } from '../data/events'
+import type { CalendarName } from '../data/events'
+
+type RepeatEndType = 'date' | 'count'
 
 // ── TimeInput ───────────────────────────────────────────────────────────────
 interface TimeInputProps {
@@ -351,9 +353,6 @@ function DatePicker({ value, onChange }: DatePickerProps): React.JSX.Element {
   )
 }
 
-// ── Color swatch ────────────────────────────────────────────────────────────
-const COLORS: EventColor[] = ['violet', 'red', 'green', 'orange', 'blue']
-
 // ── Main component ──────────────────────────────────────────────────────────
 interface NewEventPopoverProps {
   open: boolean
@@ -370,7 +369,20 @@ export default function NewEventPopover({
   const [startTime, setStartTime] = useState('10:00 AM')
   const [endTime, setEndTime] = useState('11:00 AM')
   const [calendar, setCalendar] = useState<CalendarName>('Work')
-  const [color, setColor] = useState<EventColor>('violet')
+  const [repeat, setRepeat] = useState(false)
+  const [repeatDays, setRepeatDays] = useState<number[]>([])
+  const [repeatEndType, setRepeatEndType] = useState<RepeatEndType>('date')
+  const [repeatUntil, setRepeatUntil] = useState(new Date(2026, 3, 28))
+  const [repeatCount, setRepeatCount] = useState(4)
+
+  const DOW_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+  const DOW_FULL = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+  const toggleRepeatDay = (idx: number): void => {
+    setRepeatDays((prev) =>
+      prev.includes(idx) ? prev.filter((d) => d !== idx) : [...prev, idx]
+    )
+  }
 
   return (
     <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
@@ -484,6 +496,143 @@ export default function NewEventPopover({
 
           <div className="mx-4" style={{ height: 1, background: 'var(--border)' }} />
 
+          {/* ── Repeat toggle ── */}
+          <div className="flex items-center gap-2 px-4 py-3">
+            <Repeat size={14} style={{ color: repeat ? 'var(--accent-text)' : 'var(--text-muted)', flexShrink: 0 }} />
+            <button
+              onClick={() => setRepeat(!repeat)}
+              className="flex items-center gap-2 text-xs transition-colors select-none"
+              style={{ color: repeat ? 'var(--accent-text)' : 'var(--text-muted)' }}
+            >
+              <span
+                className="flex items-center w-7 h-4 rounded-full transition-colors duration-200 relative shrink-0"
+                style={{ background: repeat ? 'var(--accent)' : 'var(--surface-3)' }}
+              >
+                <span
+                  className="absolute w-3 h-3 rounded-full transition-all duration-200"
+                  style={{
+                    background: repeat ? 'var(--accent-on)' : 'var(--text-dim)',
+                    left: repeat ? '14px' : '2px'
+                  }}
+                />
+              </span>
+              Repeat
+            </button>
+          </div>
+
+          {/* ── Repeat options ── */}
+          {repeat && (
+            <div
+              className="mx-4 mb-3 rounded-lg flex flex-col gap-3 p-3"
+              style={{ background: 'var(--surface-3)', border: '1px solid var(--border)' }}
+            >
+              {/* Day-of-week selector */}
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: 'var(--text-dim)' }}>
+                  Repeats on
+                </p>
+                <div className="flex items-center gap-1">
+                  {DOW_LABELS.map((label, idx) => {
+                    const active = repeatDays.includes(idx)
+                    return (
+                      <button
+                        key={idx}
+                        title={DOW_FULL[idx]}
+                        onClick={() => toggleRepeatDay(idx)}
+                        className="flex items-center justify-center rounded-full text-[11px] font-semibold transition-all duration-100"
+                        style={{
+                          width: 28,
+                          height: 28,
+                          background: active ? 'var(--accent)' : 'var(--surface-2)',
+                          color: active ? 'var(--accent-on)' : 'var(--text-muted)',
+                          border: `1px solid ${active ? 'var(--accent)' : 'var(--border-strong)'}`
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!active) {
+                            e.currentTarget.style.borderColor = 'var(--accent-border)'
+                            e.currentTarget.style.color = 'var(--accent-text)'
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!active) {
+                            e.currentTarget.style.borderColor = 'var(--border-strong)'
+                            e.currentTarget.style.color = 'var(--text-muted)'
+                          }
+                        }}
+                      >
+                        {label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* End condition */}
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: 'var(--text-dim)' }}>
+                  Ends
+                </p>
+                {/* End type toggle */}
+                <div
+                  className="flex items-center rounded-md overflow-hidden"
+                  style={{ border: '1px solid var(--border-strong)', width: 'fit-content' }}
+                >
+                  {(['date', 'count'] as RepeatEndType[]).map((type) => {
+                    const active = repeatEndType === type
+                    return (
+                      <button
+                        key={type}
+                        onClick={() => setRepeatEndType(type)}
+                        className="px-3 py-1 text-[11px] font-medium transition-colors"
+                        style={{
+                          background: active ? 'var(--accent)' : 'transparent',
+                          color: active ? 'var(--accent-on)' : 'var(--text-muted)'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!active) e.currentTarget.style.background = 'var(--surface-2)'
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!active) e.currentTarget.style.background = 'transparent'
+                        }}
+                      >
+                        {type === 'date' ? 'On date' : 'After'}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* End value */}
+                {repeatEndType === 'date' ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Until</span>
+                    <DatePicker value={repeatUntil} onChange={setRepeatUntil} />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={999}
+                      value={repeatCount}
+                      onChange={(e) => setRepeatCount(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-14 text-xs px-2 py-1 rounded-md outline-none text-center"
+                      style={{
+                        background: 'var(--surface-2)',
+                        border: '1px solid var(--border-strong)',
+                        color: 'var(--text)'
+                      }}
+                    />
+                    <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                      {repeatCount === 1 ? 'occurrence' : 'occurrences'}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="mx-4" style={{ height: 1, background: 'var(--border)' }} />
+
           {/* ── Calendar selector ── */}
           <div className="px-4 pt-3 pb-2 flex flex-col gap-2">
             <p
@@ -523,33 +672,7 @@ export default function NewEventPopover({
             </div>
           </div>
 
-          {/* ── Color picker ── */}
-          <div className="px-4 pb-3 flex flex-col gap-2">
-            <p
-              className="text-[10px] uppercase tracking-widest font-semibold"
-              style={{ color: 'var(--text-dim)' }}
-            >
-              Color
-            </p>
-            <div className="flex items-center gap-2.5">
-              {COLORS.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setColor(c)}
-                  className="rounded-full transition-all duration-150 shrink-0"
-                  style={{
-                    width: color === c ? 20 : 16,
-                    height: color === c ? 20 : 16,
-                    background: EVENT_COLORS[c].dot,
-                    boxShadow:
-                      color === c
-                        ? `0 0 0 2px var(--surface-2), 0 0 0 3.5px ${EVENT_COLORS[c].dot}`
-                        : 'none'
-                  }}
-                />
-              ))}
-            </div>
-          </div>
+
 
           <div style={{ height: 1, background: 'var(--border)' }} />
 
