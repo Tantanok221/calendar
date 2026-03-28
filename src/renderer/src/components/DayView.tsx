@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { DragDropProvider, useDraggable, useDroppable } from '@dnd-kit/react'
 import {
-  EVENTS,
   EVENT_COLORS,
   isSameDay,
   toDateStr,
@@ -10,8 +10,28 @@ import {
   HOUR_HEIGHT
 } from '../data/events'
 import type { CalendarEvent } from '../data/events'
+import { computeAnchor } from '../lib/eventPopoverAnchor'
+import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
+import {
+  buildDropSlotId,
+  parseDropSlotId,
+  rescheduleTimedEvent,
+  SNAP_MINUTES
+} from '../lib/calendarDrag'
+import EventDetailPopover from './EventDetailPopover'
 
 const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i)
+const SLOT_HEIGHT = (SNAP_MINUTES / 60) * HOUR_HEIGHT
+const SLOT_STARTS = Array.from(
+  { length: ((END_HOUR - START_HOUR) * 60) / SNAP_MINUTES },
+  (_, index) => START_HOUR * 60 + index * SNAP_MINUTES
+)
+type DragStartPayload = Parameters<
+  NonNullable<React.ComponentProps<typeof DragDropProvider>['onDragStart']>
+>[0]
+type DragEndPayload = Parameters<
+  NonNullable<React.ComponentProps<typeof DragDropProvider>['onDragEnd']>
+>[0]
 
 function formatHour(h: number): string {
   if (h === 0) return '12 AM'
@@ -36,23 +56,57 @@ function nowOffsetPx(): number {
   return ((mins - startMins) / 60) * HOUR_HEIGHT
 }
 
-function EventBlock({ event }: { event: CalendarEvent }): React.JSX.Element {
-  const c = EVENT_COLORS[event.color]
+function parseEventDragId(id: string | number): string | null {
+  const value = String(id)
+  return value.startsWith('event:') ? value.slice(6) : null
+}
+
+function dateFromDateStr(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+function TimedEventCard({
+  event,
+  selected,
+  dragging,
+  onClick,
+  elementRef
+}: {
+  event: CalendarEvent
+  selected: boolean
+  dragging: boolean
+  onClick: (e: React.MouseEvent, ev: CalendarEvent) => void
+  elementRef?: (element: Element | null) => void
+}): React.JSX.Element {
+  const color = EVENT_COLORS[event.color]
   const top = topPx(event.startTime!)
   const height = heightPx(event.startTime!, event.endTime!)
   const short = height < 44
 
   return (
     <div
+      ref={elementRef}
       className="event-block"
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick(e, event)
+      }}
       style={{
         top,
         height,
-        background: c.bg,
-        borderLeftColor: c.dot,
-        color: c.text,
+        background: selected ? color.bg.replace('0.13', '0.22') : color.bg,
+        borderLeftColor: color.dot,
+        color: color.text,
         left: 8,
-        right: 8
+        right: 8,
+        outline: selected ? `1px solid ${color.dot}` : 'none',
+        outlineOffset: -1,
+        cursor: dragging ? 'grabbing' : 'grab',
+        opacity: dragging ? 0.28 : 1,
+        zIndex: dragging ? 20 : selected ? 12 : 2,
+        touchAction: 'none',
+        boxShadow: dragging ? '0 10px 24px rgba(0,0,0,0.22)' : 'none'
       }}
     >
       <p className="text-xs font-semibold leading-snug">{event.title}</p>
@@ -68,15 +122,131 @@ function EventBlock({ event }: { event: CalendarEvent }): React.JSX.Element {
   )
 }
 
-interface DayViewProps {
-  currentDate: Date
-  today: Date
+function DraggableEventBlock({
+  event,
+  selected,
+  onClick
+}: {
+  event: CalendarEvent
+  selected: boolean
+  onClick: (e: React.MouseEvent, ev: CalendarEvent) => void
+}): React.JSX.Element {
+  const { ref, isDragging } = useDraggable({
+    id: `event:${event.id}`,
+    data: { eventId: event.id }
+  })
+
+  return (
+    <TimedEventCard
+      event={event}
+      selected={selected}
+      dragging={isDragging}
+      onClick={onClick}
+      elementRef={ref}
+    />
+  )
 }
 
-export default function DayView({ currentDate, today }: DayViewProps): React.JSX.Element {
+function DropSlot({ id, top }: { id: string; top: number }): React.JSX.Element {
+  const { ref, isDropTarget } = useDroppable({ id })
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        top,
+        height: SLOT_HEIGHT,
+        pointerEvents: 'none',
+        background: isDropTarget ? 'rgba(215,206,178,0.10)' : 'transparent',
+        outline: isDropTarget ? '1px solid var(--accent-border)' : 'none',
+        outlineOffset: -1,
+        zIndex: 1
+      }}
+    />
+  )
+}
+
+interface DayViewProps {
+  events: CalendarEvent[]
+  currentDate: Date
+  today: Date
+  onEventChange: (event: CalendarEvent) => void
+}
+
+export default function DayView({
+  events,
+  currentDate,
+  today,
+  onEventChange
+}: DayViewProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const suppressClickUntilRef = useRef(0)
   const [nowPx, setNowPx] = useState(nowOffsetPx)
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
+  const [popoverAnchor, setPopoverAnchor] = useState<PopoverAnchor | null>(null)
+  const [draggedEventId, setDraggedEventId] = useState<string | null>(null)
   const isToday = isSameDay(currentDate, today)
+  const selectedEvent = events.find((event) => event.id === selectedEventId) ?? null
+
+  const clearSelection = (): void => {
+    setSelectedEventId(null)
+    setPopoverAnchor(null)
+  }
+
+  const handleEventClick = (e: React.MouseEvent, event: CalendarEvent): void => {
+    if (Date.now() < suppressClickUntilRef.current) return
+
+    if (selectedEventId === event.id) {
+      clearSelection()
+      return
+    }
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setPopoverAnchor(computeAnchor(rect))
+    setSelectedEventId(event.id)
+  }
+
+  const handleDragStart = ({ operation }: DragStartPayload): void => {
+    const source = operation.source
+    if (!source) return
+
+    const eventId = parseEventDragId(source.id)
+    if (!eventId) return
+
+    setDraggedEventId(eventId)
+    clearSelection()
+  }
+
+  const handleDragEnd = ({ canceled, operation }: DragEndPayload): void => {
+    const source = operation.source
+    const target = operation.target
+    if (!source) return
+
+    const eventId = parseEventDragId(source.id)
+
+    setDraggedEventId(null)
+
+    if (!eventId) return
+
+    suppressClickUntilRef.current = Date.now() + 250
+
+    if (canceled || !target) return
+
+    const event = events.find((candidate) => candidate.id === eventId)
+    if (!event) return
+
+    const slot = parseDropSlotId(String(target.id))
+
+    onEventChange(
+      rescheduleTimedEvent(event, {
+        date: dateFromDateStr(slot.date),
+        startMinutes: slot.startMinutes
+      })
+    )
+  }
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -90,137 +260,175 @@ export default function DayView({ currentDate, today }: DayViewProps): React.JSX
   }, [])
 
   const dayStr = toDateStr(currentDate)
-  const timedEvents = EVENTS.filter((e) => e.date === dayStr && !e.allDay && e.startTime)
-  const allDayEvents = EVENTS.filter((e) => e.date === dayStr && e.allDay)
+  const timedEvents = events
+    .filter((event) => event.date === dayStr && !event.allDay && event.startTime && event.endTime)
+    .sort((a, b) => timeToMinutes(a.startTime!) - timeToMinutes(b.startTime!))
+  const allDayEvents = events.filter((event) => event.date === dayStr && event.allDay)
 
   return (
-    <div className="flex flex-col h-full" style={{ background: 'var(--bg)' }}>
-      {/* Day header */}
+    <DragDropProvider onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div
-        className="shrink-0 px-4 py-3 flex items-center gap-3"
-        style={{ borderBottom: '1px solid var(--border)' }}
+        className="flex flex-col h-full"
+        style={{ background: 'var(--bg)' }}
+        onClick={() => {
+          clearSelection()
+        }}
       >
-        <div className="flex items-center gap-2">
-          <span
-            className="flex items-center justify-center w-9 h-9 rounded-xl text-xl font-bold"
-            style={
-              isToday
-                ? { background: 'var(--accent)', color: 'var(--accent-on)' }
-                : { background: 'var(--surface-2)', color: 'var(--text)' }
-            }
-          >
-            {currentDate.getDate()}
-          </span>
-          <div>
-            <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--text)' }}>
-              {currentDate.toLocaleDateString('en-US', { weekday: 'long' })}
-            </p>
-            <p className="text-[11px] leading-tight" style={{ color: 'var(--text-muted)' }}>
-              {currentDate.toLocaleDateString('en-US', {
-                month: 'long',
-                day: 'numeric',
-                year: 'numeric'
-              })}
-            </p>
+        {selectedEvent && popoverAnchor && (
+          <EventDetailPopover
+            event={selectedEvent}
+            anchor={popoverAnchor}
+            onClose={() => {
+              clearSelection()
+            }}
+          />
+        )}
+        {/* Day header */}
+        <div
+          className="shrink-0 px-4 py-3 flex items-center gap-3"
+          style={{ borderBottom: '1px solid var(--border)' }}
+        >
+          <div className="flex items-center gap-2">
+            <span
+              className="flex items-center justify-center w-9 h-9 rounded-xl text-xl font-bold"
+              style={
+                isToday
+                  ? { background: 'var(--accent)', color: 'var(--accent-on)' }
+                  : { background: 'var(--surface-2)', color: 'var(--text)' }
+              }
+            >
+              {currentDate.getDate()}
+            </span>
+            <div>
+              <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--text)' }}>
+                {currentDate.toLocaleDateString('en-US', { weekday: 'long' })}
+              </p>
+              <p className="text-[11px] leading-tight" style={{ color: 'var(--text-muted)' }}>
+                {currentDate.toLocaleDateString('en-US', {
+                  month: 'long',
+                  day: 'numeric',
+                  year: 'numeric'
+                })}
+              </p>
+            </div>
           </div>
+
+          {timedEvents.length > 0 && (
+            <div
+              className="ml-auto px-2.5 py-1 rounded-full text-[11px] font-medium"
+              style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
+            >
+              {timedEvents.length + allDayEvents.length} event
+              {timedEvents.length + allDayEvents.length !== 1 ? 's' : ''}
+            </div>
+          )}
         </div>
 
-        {timedEvents.length > 0 && (
+        {/* All-day strip */}
+        {allDayEvents.length > 0 && (
           <div
-            className="ml-auto px-2.5 py-1 rounded-full text-[11px] font-medium"
-            style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
+            className="shrink-0 flex items-center gap-1 px-4 py-2"
+            style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
           >
-            {timedEvents.length + allDayEvents.length} event
-            {timedEvents.length + allDayEvents.length !== 1 ? 's' : ''}
+            <span
+              className="text-[10px] uppercase tracking-wider mr-1"
+              style={{ color: 'var(--text-dim)', minWidth: 46 }}
+            >
+              All day
+            </span>
+            {allDayEvents.map((event) => {
+              const color = EVENT_COLORS[event.color]
+              return (
+                <div
+                  key={event.id}
+                  className="px-2 py-0.5 rounded text-[11px] font-medium"
+                  style={{ background: color.pillBg, color: color.text }}
+                >
+                  {event.title}
+                </div>
+              )
+            })}
           </div>
         )}
-      </div>
 
-      {/* All-day strip */}
-      {allDayEvents.length > 0 && (
-        <div
-          className="shrink-0 flex items-center gap-1 px-4 py-2"
-          style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}
-        >
-          <span
-            className="text-[10px] uppercase tracking-wider mr-1"
-            style={{ color: 'var(--text-dim)', minWidth: 46 }}
-          >
-            All day
-          </span>
-          {allDayEvents.map((e) => {
-            const c = EVENT_COLORS[e.color]
-            return (
-              <div
-                key={e.id}
-                className="px-2 py-0.5 rounded text-[11px] font-medium"
-                style={{ background: c.pillBg, color: c.text }}
-              >
-                {e.title}
-              </div>
-            )
-          })}
-        </div>
-      )}
+        {/* Time grid */}
+        <div className="time-grid-scroll" ref={scrollRef}>
+          <div className="grid" style={{ gridTemplateColumns: `var(--time-col-w) 1fr` }}>
+            <div className="relative" style={{ height: (END_HOUR - START_HOUR) * HOUR_HEIGHT }}>
+              {HOURS.map((hour, index) => (
+                <span
+                  key={hour}
+                  className="absolute right-2 text-[10px] font-medium select-none"
+                  style={{
+                    top: index === 0 ? 4 : (hour - START_HOUR) * HOUR_HEIGHT,
+                    transform: index === 0 ? 'none' : 'translateY(-50%)',
+                    color: 'var(--text-dim)'
+                  }}
+                >
+                  {formatHour(hour)}
+                </span>
+              ))}
+            </div>
 
-      {/* Time grid */}
-      <div className="time-grid-scroll" ref={scrollRef}>
-        <div className="grid" style={{ gridTemplateColumns: `var(--time-col-w) 1fr` }}>
-          {/* Time labels — absolutely positioned so labels never touch grid lines */}
-          <div className="relative" style={{ height: (END_HOUR - START_HOUR) * HOUR_HEIGHT }}>
-            {HOURS.map((h, i) => (
-              <span
-                key={h}
-                className="absolute right-2 text-[10px] font-medium select-none"
-                style={{
-                  top: i === 0 ? 4 : (h - START_HOUR) * HOUR_HEIGHT,
-                  transform: i === 0 ? 'none' : 'translateY(-50%)',
-                  color: 'var(--text-dim)'
-                }}
-              >
-                {formatHour(h)}
-              </span>
-            ))}
-          </div>
+            <div
+              className="day-col-inner"
+              style={{
+                height: (END_HOUR - START_HOUR) * HOUR_HEIGHT,
+                background: 'transparent'
+              }}
+            >
+              {HOURS.map((hour) => (
+                <div
+                  key={hour}
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    top: (hour - START_HOUR) * HOUR_HEIGHT,
+                    height: 1,
+                    background: 'var(--border)'
+                  }}
+                />
+              ))}
 
-          {/* Event column */}
-          <div
-            className="day-col-inner"
-            style={{
-              height: (END_HOUR - START_HOUR) * HOUR_HEIGHT,
-              background: 'transparent'
-            }}
-          >
-            {/* Hour lines */}
-            {HOURS.map((h) => (
-              <div
-                key={h}
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  right: 0,
-                  top: (h - START_HOUR) * HOUR_HEIGHT,
-                  height: 1,
-                  background: 'var(--border)'
-                }}
-              />
-            ))}
+              {SLOT_STARTS.map((startMinutes) => (
+                <DropSlot
+                  key={startMinutes}
+                  id={buildDropSlotId('day', currentDate, startMinutes)}
+                  top={((startMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT}
+                />
+              ))}
 
-            {/* Events */}
-            {timedEvents.map((e) => (
-              <EventBlock key={e.id} event={e} />
-            ))}
+              {timedEvents.map((event) => (
+                <DraggableEventBlock
+                  key={event.id}
+                  event={event}
+                  selected={selectedEventId === event.id}
+                  onClick={handleEventClick}
+                />
+              ))}
 
-            {/* Now line */}
-            {isToday && nowPx >= 0 && (
-              <div className="now-line" style={{ top: nowPx }}>
-                <div className="now-dot" />
-                <div className="now-bar" />
-              </div>
-            )}
+              {isToday && nowPx >= 0 && (
+                <div className="now-line" style={{ top: nowPx }}>
+                  <div className="now-dot" />
+                  <div className="now-bar" />
+                </div>
+              )}
+
+              {draggedEventId && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    background: 'rgba(12, 13, 14, 0.03)'
+                  }}
+                />
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </DragDropProvider>
   )
 }

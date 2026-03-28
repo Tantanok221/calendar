@@ -8,9 +8,9 @@
   --border-strong: rgba(215, 206, 178, 0.18);
 
   /* Text — warm whites tinted with the accent hue */
-  --text: rgba(235, 228, 210, 0.92);
-  --text-muted: rgba(215, 206, 178, 0.52);
-  --text-dim: rgba(215, 206, 178, 0.3);
+  --text: rgba(245, 240, 225, 1);
+  --text-muted: rgba(225, 218, 196, 0.75);
+  --text-dim: rgba(220, 212, 188, 0.5);
 
   /* Accent — sand/parchment */
   --accent: #d7ceb2;

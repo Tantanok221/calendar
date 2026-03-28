@@ -4,6 +4,8 @@ import TopBar from './components/TopBar'
 import MonthView from './components/MonthView'
 import WeekView from './components/WeekView'
 import DayView from './components/DayView'
+import { EVENTS } from './data/events'
+import type { CalendarEvent } from './data/events'
 import type { ViewType } from './components/TopBar'
 
 const TODAY = new Date(2026, 2, 28) // March 28, 2026
@@ -11,6 +13,7 @@ const TODAY = new Date(2026, 2, 28) // March 28, 2026
 function App(): React.JSX.Element {
   const [view, setView] = useState<ViewType>('week')
   const [currentDate, setCurrentDate] = useState<Date>(new Date(TODAY))
+  const [events, setEvents] = useState<CalendarEvent[]>(() => EVENTS.map((event) => ({ ...event })))
 
   const navigate = (dir: 'prev' | 'next'): void => {
     const d = new Date(currentDate)
@@ -26,9 +29,16 @@ function App(): React.JSX.Element {
     if (view !== 'day') setView('day')
   }
 
+  const handleEventChange = (updatedEvent: CalendarEvent): void => {
+    setEvents((currentEvents) =>
+      currentEvents.map((event) => (event.id === updatedEvent.id ? updatedEvent : event))
+    )
+  }
+
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg)' }}>
       <Sidebar
+        events={events}
         currentDate={currentDate}
         today={TODAY}
         view={view}
@@ -44,12 +54,30 @@ function App(): React.JSX.Element {
         />
         <div className="flex-1 min-h-0 overflow-hidden">
           {view === 'month' && (
-            <MonthView currentDate={currentDate} today={TODAY} onDateSelect={handleDateSelect} />
+            <MonthView
+              events={events}
+              currentDate={currentDate}
+              today={TODAY}
+              onDateSelect={handleDateSelect}
+            />
           )}
           {view === 'week' && (
-            <WeekView currentDate={currentDate} today={TODAY} onDateSelect={handleDateSelect} />
+            <WeekView
+              events={events}
+              currentDate={currentDate}
+              today={TODAY}
+              onDateSelect={handleDateSelect}
+              onEventChange={handleEventChange}
+            />
           )}
-          {view === 'day' && <DayView currentDate={currentDate} today={TODAY} />}
+          {view === 'day' && (
+            <DayView
+              events={events}
+              currentDate={currentDate}
+              today={TODAY}
+              onEventChange={handleEventChange}
+            />
+          )}
         </div>
       </div>
     </div>
