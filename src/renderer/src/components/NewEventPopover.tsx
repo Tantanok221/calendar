@@ -1,39 +1,11 @@
-import { useState, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Popover from '@radix-ui/react-popover'
 import { X, CalendarBlank, Clock, CaretDown, CaretLeft, CaretRight } from '@phosphor-icons/react'
 import { cn } from '../lib/utils'
+import { getClosestTimeSuggestion, getTimeSuggestions } from '../lib/timeSuggestions'
 import { CALENDARS, EVENT_COLORS, isSameDay } from '../data/events'
 import type { EventColor, CalendarName } from '../data/events'
-
-// ── Time suggestions ────────────────────────────────────────────────────────
-const TIME_SUGGESTIONS = [
-  '7:00 AM',
-  '7:30 AM',
-  '8:00 AM',
-  '8:30 AM',
-  '9:00 AM',
-  '9:30 AM',
-  '10:00 AM',
-  '10:30 AM',
-  '11:00 AM',
-  '11:30 AM',
-  '12:00 PM',
-  '12:30 PM',
-  '1:00 PM',
-  '1:30 PM',
-  '2:00 PM',
-  '2:30 PM',
-  '3:00 PM',
-  '3:30 PM',
-  '4:00 PM',
-  '4:30 PM',
-  '5:00 PM',
-  '5:30 PM',
-  '6:00 PM',
-  '7:00 PM',
-  '8:00 PM'
-]
 
 // ── TimeInput ───────────────────────────────────────────────────────────────
 interface TimeInputProps {
@@ -43,29 +15,61 @@ interface TimeInputProps {
 
 function TimeInput({ value, onChange }: TimeInputProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const filtered = TIME_SUGGESTIONS.filter(
-    (t) =>
-      t.toLowerCase().startsWith(value.toLowerCase().replace(/\s/g, '')) ||
-      t.toLowerCase().includes(value.toLowerCase())
+  const suggestions = getTimeSuggestions(value, undefined, 5)
+  const closestSuggestion = getClosestTimeSuggestion(value)
+  const defaultActiveIndex = Math.max(
+    0,
+    closestSuggestion ? suggestions.indexOf(closestSuggestion) : suggestions.indexOf(value)
   )
+
+  useEffect(() => {
+    setActiveIndex(defaultActiveIndex)
+  }, [defaultActiveIndex])
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger asChild>
+      <Popover.Anchor asChild>
         <input
+          type="text"
           ref={inputRef}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            onChange(e.target.value)
+            setOpen(true)
+          }}
+          onFocus={() => {
+            setActiveIndex(defaultActiveIndex)
+            setOpen(true)
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
               setOpen(false)
               inputRef.current?.blur()
+              return
             }
-            if (e.key === 'Enter' && filtered[0]) {
-              onChange(filtered[0])
+
+            if (e.key === 'ArrowDown' && suggestions.length > 0) {
+              e.preventDefault()
+              setOpen(true)
+              setActiveIndex((current) => Math.min(current + 1, suggestions.length - 1))
+              return
+            }
+
+            if (e.key === 'ArrowUp' && suggestions.length > 0) {
+              e.preventDefault()
+              setOpen(true)
+              setActiveIndex((current) => Math.max(current - 1, 0))
+              return
+            }
+
+            if (e.key === 'Enter' && suggestions.length > 0) {
+              e.preventDefault()
+              onChange(
+                suggestions[activeIndex] ?? suggestions[defaultActiveIndex] ?? suggestions[0]
+              )
               setOpen(false)
             }
           }}
@@ -76,7 +80,7 @@ function TimeInput({ value, onChange }: TimeInputProps): React.JSX.Element {
             color: 'var(--text)'
           }}
         />
-      </Popover.Trigger>
+      </Popover.Anchor>
 
       <Popover.Portal>
         <Popover.Content
@@ -94,33 +98,37 @@ function TimeInput({ value, onChange }: TimeInputProps): React.JSX.Element {
             scrollbarWidth: 'none'
           }}
         >
-          {filtered.map((t) => (
-            <button
-              key={t}
-              onMouseDown={(e) => {
-                e.preventDefault()
-                onChange(t)
-                setOpen(false)
-              }}
-              className={cn(
-                'w-full text-left px-3 py-1.5 text-xs transition-colors',
-                t === value ? 'font-semibold' : 'font-normal'
-              )}
-              style={{
-                color: t === value ? 'var(--accent-text)' : 'var(--text)',
-                background: t === value ? 'var(--accent-bg)' : 'transparent'
-              }}
-              onMouseEnter={(e) => {
-                if (t !== value) e.currentTarget.style.background = 'var(--surface-2)'
-              }}
-              onMouseLeave={(e) => {
-                if (t !== value) e.currentTarget.style.background = 'transparent'
-              }}
-            >
-              {t}
-            </button>
-          ))}
-          {filtered.length === 0 && (
+          {suggestions.map((t, index) => {
+            const isActive = index === activeIndex
+            return (
+              <button
+                key={t}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  onChange(t)
+                  setOpen(false)
+                }}
+                className={cn(
+                  'w-full text-left px-3 py-1.5 text-xs transition-colors',
+                  isActive ? 'font-semibold' : 'font-normal'
+                )}
+                style={{
+                  color: isActive ? 'var(--accent-text)' : 'var(--text)',
+                  background: isActive ? 'var(--accent-bg)' : 'transparent'
+                }}
+                onMouseEnter={(e) => {
+                  setActiveIndex(index)
+                  if (!isActive) e.currentTarget.style.background = 'var(--surface-2)'
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) e.currentTarget.style.background = 'transparent'
+                }}
+              >
+                {t}
+              </button>
+            )
+          })}
+          {suggestions.length === 0 && (
             <p className="px-3 py-2 text-xs" style={{ color: 'var(--text-dim)' }}>
               No match
             </p>
