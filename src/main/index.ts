@@ -11,7 +11,7 @@ function createWindow(): void {
     minHeight: 720,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: '#f7f1e6',
+    backgroundColor: '#1a1916',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
