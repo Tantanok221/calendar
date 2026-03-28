@@ -1,10 +1,11 @@
 # Calendar
 
-A desktop calendar shell built with Electron, React, TypeScript, and Bun.
+A Bun monorepo for the Calendar desktop app and future shared or backend packages.
 
-## Recommended IDE Setup
+## Workspace Layout
 
-- [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
+- `apps/desktop`: Electron desktop app
+- `packages/*`: shared packages for future backend or app code
 
 ## Project Setup
 
@@ -19,6 +20,8 @@ $ bun install
 ```bash
 $ bun run dev
 ```
+
+The root scripts forward to the desktop app in `apps/desktop`.
 
 ### Build
 
