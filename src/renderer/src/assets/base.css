@@ -1,16 +1,9 @@
 :root {
-  --paper: #f7f1e6;
-  --paper-strong: #fffaf2;
-  --ink: #233042;
-  --ink-muted: #627086;
-  --border: rgba(35, 48, 66, 0.12);
-  --accent: #c56a45;
-  --accent-strong: #a34d2b;
-  --shadow: 0 24px 80px rgba(77, 54, 29, 0.12);
-  --color-background: var(--paper);
-  --color-background-soft: var(--paper-strong);
-  --color-background-mute: #eadfcb;
-  --color-text: var(--ink);
+  --color-background: #f6f6f4;
+  --color-surface: #ffffff;
+  --color-border: #d9d9d4;
+  --color-text: #1f1f1c;
+  --color-text-muted: #6f6f68;
 }
 
 *,
@@ -29,11 +22,7 @@ body {
   color: var(--color-text);
   background: var(--color-background);
   line-height: 1.6;
-  font-family:
-    'Avenir Next',
-    -apple-system,
-    'Segoe UI',
-    sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
