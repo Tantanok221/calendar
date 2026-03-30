@@ -1,8 +1,19 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import type { DesktopApi } from './api'
 
 // Custom APIs for renderer
-const api = {}
+const api: DesktopApi = {
+  googleCalendar: {
+    getStatus: () => ipcRenderer.invoke('google-calendar:get-status'),
+    connect: () => ipcRenderer.invoke('google-calendar:connect'),
+    disconnect: () => ipcRenderer.invoke('google-calendar:disconnect'),
+    listCalendars: () => ipcRenderer.invoke('google-calendar:list-calendars'),
+    listEvents: (input) => ipcRenderer.invoke('google-calendar:list-events', input),
+    updateEvent: (input) => ipcRenderer.invoke('google-calendar:update-event', input),
+    createEvent: (input) => ipcRenderer.invoke('google-calendar:create-event', input)
+  }
+}
 
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise

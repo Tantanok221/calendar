@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import type { CalendarEvent } from '../data/events'
 import {
+  buildAllDayDropSlotId,
   buildDropSlotId,
   clampEventStartMinutes,
   getDateFromColumnIndex,
   parseDropSlotId,
+  rescheduleAllDayEvent,
   rescheduleTimedEvent,
   SNAP_MINUTES
 } from './calendarDrag'
@@ -55,7 +57,38 @@ describe('calendar drag helpers', () => {
     expect(parseDropSlotId(slotId)).toEqual({
       view: 'week',
       date: '2026-03-29',
-      startMinutes: 9 * 60 + 30
+      startMinutes: 9 * 60 + 30,
+      lane: 'timed'
+    })
+  })
+
+  test('serializes and parses all-day drop slot ids for dnd targets', () => {
+    const slotId = buildAllDayDropSlotId('week', new Date(2026, 2, 29))
+
+    expect(parseDropSlotId(slotId)).toEqual({
+      view: 'week',
+      date: '2026-03-29',
+      startMinutes: null,
+      lane: 'all-day'
+    })
+  })
+
+  test('reschedules an all-day event by changing only its date', () => {
+    expect(
+      rescheduleAllDayEvent(
+        {
+          ...BASE_EVENT,
+          allDay: true,
+          startTime: undefined,
+          endTime: undefined
+        },
+        new Date(2026, 2, 30)
+      )
+    ).toMatchObject({
+      date: '2026-03-30',
+      allDay: true,
+      startTime: undefined,
+      endTime: undefined
     })
   })
 })

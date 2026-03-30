@@ -1,4 +1,4 @@
-import { CaretLeft, CaretRight } from '@phosphor-icons/react'
+import { CaretLeft, CaretRight, GearSix } from '@phosphor-icons/react'
 import { getWeekStart } from '../data/events'
 
 export type ViewType = 'day' | 'week' | 'month'
@@ -34,6 +34,7 @@ interface TopBarProps {
   currentDate: Date
   onPrev: () => void
   onNext: () => void
+  onSettingsOpen: () => void
 }
 
 export default function TopBar({
@@ -41,7 +42,8 @@ export default function TopBar({
   onViewChange,
   currentDate,
   onPrev,
-  onNext
+  onNext,
+  onSettingsOpen,
 }: TopBarProps): React.JSX.Element {
   return (
     <div
@@ -104,6 +106,23 @@ export default function TopBar({
           </button>
         ))}
       </div>
+
+      {/* Settings */}
+      <button
+        onClick={onSettingsOpen}
+        className="no-drag flex items-center justify-center w-7 h-7 rounded-md transition-colors duration-100 ml-1"
+        style={{ color: 'var(--text-dim)' }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'var(--surface-2)'
+          e.currentTarget.style.color = 'var(--text-muted)'
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent'
+          e.currentTarget.style.color = 'var(--text-dim)'
+        }}
+      >
+        <GearSix size={15} weight="regular" />
+      </button>
     </div>
   )
 }

@@ -3,6 +3,7 @@ import type { CalendarEvent } from '../data/events'
 
 export const SNAP_MINUTES = 30
 export type CalendarDropView = 'day' | 'week'
+export type CalendarDropLane = 'timed' | 'all-day'
 
 function roundToSnap(minutes: number, snapMinutes: number = SNAP_MINUTES): number {
   return Math.round(minutes / snapMinutes) * snapMinutes
@@ -17,24 +18,43 @@ function minutesToTime(totalMinutes: number): string {
 }
 
 export function buildDropSlotId(view: CalendarDropView, date: Date, startMinutes: number): string {
-  return `${view}:${toDateStr(date)}:${startMinutes}`
+  return `${view}:timed:${toDateStr(date)}:${startMinutes}`
+}
+
+export function buildAllDayDropSlotId(view: CalendarDropView, date: Date): string {
+  return `${view}:all-day:${toDateStr(date)}`
 }
 
 export function parseDropSlotId(slotId: string): {
   view: CalendarDropView
   date: string
-  startMinutes: number
+  startMinutes: number | null
+  lane: CalendarDropLane
 } {
-  const [view, date, startMinutes] = slotId.split(':')
+  const [view, lane, date, startMinutes] = slotId.split(':')
 
-  if ((view !== 'day' && view !== 'week') || !date || !startMinutes) {
+  if ((view !== 'day' && view !== 'week') || (lane !== 'timed' && lane !== 'all-day') || !date) {
     throw new Error(`Invalid drop slot id: ${slotId}`)
+  }
+
+  if (lane === 'timed') {
+    if (!startMinutes) {
+      throw new Error(`Invalid timed drop slot id: ${slotId}`)
+    }
+
+    return {
+      view,
+      date,
+      startMinutes: Number(startMinutes),
+      lane
+    }
   }
 
   return {
     view,
     date,
-    startMinutes: Number(startMinutes)
+    startMinutes: null,
+    lane
   }
 }
 
@@ -89,5 +109,15 @@ export function rescheduleTimedEvent(
     date: toDateStr(date),
     startTime: minutesToTime(nextStartMinutes),
     endTime: minutesToTime(nextEndMinutes)
+  }
+}
+
+export function rescheduleAllDayEvent(event: CalendarEvent, date: Date): CalendarEvent {
+  return {
+    ...event,
+    date: toDateStr(date),
+    allDay: true,
+    startTime: undefined,
+    endTime: undefined
   }
 }

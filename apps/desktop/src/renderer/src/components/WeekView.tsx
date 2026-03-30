@@ -14,8 +14,10 @@ import type { CalendarEvent } from '../data/events'
 import { computeAnchor } from '../lib/eventPopoverAnchor'
 import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
 import {
+  buildAllDayDropSlotId,
   buildDropSlotId,
   parseDropSlotId,
+  rescheduleAllDayEvent,
   rescheduleTimedEvent,
   SNAP_MINUTES
 } from '../lib/calendarDrag'
@@ -144,6 +146,70 @@ function DraggableEventBlock({
   )
 }
 
+function AllDayEventPill({
+  event,
+  selected,
+  dragging,
+  onClick,
+  elementRef
+}: {
+  event: CalendarEvent
+  selected: boolean
+  dragging: boolean
+  onClick: (e: React.MouseEvent, ev: CalendarEvent) => void
+  elementRef?: (element: Element | null) => void
+}): React.JSX.Element {
+  const color = EVENT_COLORS[event.color]
+
+  return (
+    <div
+      ref={elementRef}
+      className="text-[10px] font-medium px-1.5 py-0.5 rounded truncate mb-0.5"
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick(e, event)
+      }}
+      style={{
+        background: selected ? color.pillBg.replace('0.18', '0.32') : color.pillBg,
+        color: color.text,
+        outline: selected ? `1px solid ${color.dot}` : 'none',
+        outlineOffset: -1,
+        cursor: dragging ? 'grabbing' : 'grab',
+        opacity: dragging ? 0.28 : 1,
+        boxShadow: dragging ? '0 10px 24px rgba(0,0,0,0.22)' : 'none',
+        touchAction: 'none'
+      }}
+    >
+      {event.title}
+    </div>
+  )
+}
+
+function DraggableAllDayEventPill({
+  event,
+  selected,
+  onClick
+}: {
+  event: CalendarEvent
+  selected: boolean
+  onClick: (e: React.MouseEvent, ev: CalendarEvent) => void
+}): React.JSX.Element {
+  const { ref, isDragging } = useDraggable({
+    id: `event:${event.id}`,
+    data: { eventId: event.id }
+  })
+
+  return (
+    <AllDayEventPill
+      event={event}
+      selected={selected}
+      dragging={isDragging}
+      onClick={onClick}
+      elementRef={ref}
+    />
+  )
+}
+
 function DropSlot({ id, top }: { id: string; top: number }): React.JSX.Element {
   const { ref, isDropTarget } = useDroppable({ id })
 
@@ -163,6 +229,25 @@ function DropSlot({ id, top }: { id: string; top: number }): React.JSX.Element {
         zIndex: 1
       }}
     />
+  )
+}
+
+function AllDayDropSlot({ id, children }: { id: string; children: React.ReactNode }): React.JSX.Element {
+  const { ref, isDropTarget } = useDroppable({ id })
+
+  return (
+    <div
+      ref={ref}
+      className="p-0.5 min-h-[24px]"
+      style={{
+        borderLeft: '1px solid var(--border)',
+        background: isDropTarget ? 'rgba(215,206,178,0.10)' : 'transparent',
+        outline: isDropTarget ? '1px solid var(--accent-border)' : 'none',
+        outlineOffset: -1
+      }}
+    >
+      {children}
+    </div>
   )
 }
 
@@ -239,11 +324,15 @@ export default function WeekView({
 
     const slot = parseDropSlotId(String(target.id))
 
+    const nextDate = dateFromDateStr(slot.date)
+
     onEventChange(
-      rescheduleTimedEvent(event, {
-        date: dateFromDateStr(slot.date),
-        startMinutes: slot.startMinutes
-      })
+      slot.lane === 'all-day'
+        ? rescheduleAllDayEvent(event, nextDate)
+        : rescheduleTimedEvent(event, {
+            date: nextDate,
+            startMinutes: slot.startMinutes ?? START_HOUR * 60
+          })
     )
   }
 
@@ -343,24 +432,21 @@ export default function WeekView({
               {days.map((day) => {
                 const dayEvents = allDayEvents(day)
                 return (
-                  <div
+                  <AllDayDropSlot
                     key={`all-day-${toDateStr(day)}`}
-                    className="p-0.5 min-h-[24px]"
-                    style={{ borderLeft: '1px solid var(--border)' }}
+                    id={buildAllDayDropSlotId('week', day)}
                   >
                     {dayEvents.map((event) => {
-                      const color = EVENT_COLORS[event.color]
                       return (
-                        <div
+                        <DraggableAllDayEventPill
                           key={event.id}
-                          className="text-[10px] font-medium px-1.5 py-0.5 rounded truncate mb-0.5"
-                          style={{ background: color.pillBg, color: color.text }}
-                        >
-                          {event.title}
-                        </div>
+                          event={event}
+                          selected={selectedEventId === event.id}
+                          onClick={handleEventClick}
+                        />
                       )
                     })}
-                  </div>
+                  </AllDayDropSlot>
                 )
               })}
             </div>
