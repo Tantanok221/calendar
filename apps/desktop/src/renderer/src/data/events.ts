@@ -1,5 +1,12 @@
 export type EventColor = 'violet' | 'red' | 'green' | 'orange' | 'blue'
-export type CalendarName = 'Work' | 'Personal' | 'External'
+export type CalendarName = string
+
+export interface GoogleEventSource {
+  provider: 'google'
+  calendarId: string
+  eventId: string
+  timeZone: string | null
+}
 
 export interface CalendarEvent {
   id: string
@@ -10,6 +17,7 @@ export interface CalendarEvent {
   allDay?: boolean
   color: EventColor
   calendar: CalendarName
+  source?: GoogleEventSource
 }
 
 export const EVENT_COLORS: Record<
@@ -64,7 +72,7 @@ export const CALENDARS: Array<{ name: CalendarName; color: EventColor }> = [
   { name: 'External', color: 'blue' }
 ]
 
-// Today = March 28, 2026 (Saturday)
+// Mock events anchored around late March 2026
 export const EVENTS: CalendarEvent[] = [
   // === Week of Mar 23–29 (Mon–Sun) — current week ===
   {

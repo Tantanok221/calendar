@@ -1,7 +1,9 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { GoogleCalendarService } from './googleCalendar/service'
+import { loadDesktopRootEnv, resolveDesktopDirFromMainFile } from './env'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -41,12 +43,26 @@ function createWindow(): void {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await loadDesktopRootEnv(resolveDesktopDirFromMainFile(__dirname))
+
   electronApp.setAppUserModelId('com.calendar.desktop')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
+
+  const googleCalendarService = new GoogleCalendarService()
+
+  ipcMain.handle('google-calendar:get-status', () => googleCalendarService.getStatus())
+  ipcMain.handle('google-calendar:connect', () => googleCalendarService.connect())
+  ipcMain.handle('google-calendar:disconnect', async () => {
+    await googleCalendarService.disconnect()
+  })
+  ipcMain.handle('google-calendar:list-calendars', () => googleCalendarService.listCalendars())
+  ipcMain.handle('google-calendar:list-events', (_, input) => googleCalendarService.listEvents(input))
+  ipcMain.handle('google-calendar:update-event', (_, input) => googleCalendarService.updateEvent(input))
+  ipcMain.handle('google-calendar:create-event', (_, input) => googleCalendarService.createEvent(input))
 
   createWindow()
 

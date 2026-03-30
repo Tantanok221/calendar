@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { CaretLeft, CaretRight, Plus } from '@phosphor-icons/react'
-import { CALENDARS, EVENT_COLORS, getWeekStart, isSameDay } from '../data/events'
+import { EVENT_COLORS, getWeekStart, isSameDay } from '../data/events'
 import type { CalendarEvent } from '../data/events'
 import type { ViewType } from './TopBar'
 import NewEventPopover from './NewEventPopover'
+import { DEFAULT_RENDERER_CALENDARS, type RendererCalendar } from '../lib/googleCalendarSync'
+import type { CreateCalendarEventDraft } from '../lib/googleCalendarCreate'
 
 const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
@@ -159,19 +161,23 @@ function MiniCalendar({
 }
 
 interface SidebarProps {
+  calendars?: RendererCalendar[]
   events: CalendarEvent[]
   currentDate: Date
   today: Date
   view: ViewType
   onDateSelect: (d: Date) => void
+  onCreateEvent: (draft: CreateCalendarEventDraft) => Promise<void>
 }
 
 export default function Sidebar({
+  calendars = DEFAULT_RENDERER_CALENDARS,
   events,
   currentDate,
   today,
   view,
-  onDateSelect
+  onDateSelect,
+  onCreateEvent
 }: SidebarProps): React.JSX.Element {
   const [showNewEvent, setShowNewEvent] = useState(false)
   const [newEventKey, setNewEventKey] = useState(0)
@@ -215,6 +221,8 @@ export default function Sidebar({
         key={newEventKey}
         open={showNewEvent}
         onClose={() => setShowNewEvent(false)}
+        calendars={calendars}
+        onCreateEvent={onCreateEvent}
       />
 
       {/* Mini calendar */}
@@ -238,7 +246,7 @@ export default function Sidebar({
           My Calendars
         </p>
         <div className="flex flex-col gap-0.5">
-          {CALENDARS.map((cal) => (
+          {calendars.map((cal) => (
             <label
               key={cal.name}
               className="flex items-center gap-2 px-1.5 h-7 rounded-md cursor-pointer transition-colors"

@@ -4,10 +4,10 @@ import * as Popover from '@radix-ui/react-popover'
 import { X, CalendarBlank, Clock, CaretDown, CaretLeft, CaretRight, Repeat } from '@phosphor-icons/react'
 import { cn } from '../lib/utils'
 import { getClosestTimeSuggestion, getTimeSuggestions } from '../lib/timeSuggestions'
-import { CALENDARS, EVENT_COLORS, isSameDay } from '../data/events'
-import type { CalendarName } from '../data/events'
-
-type RepeatEndType = 'date' | 'count'
+import { EVENT_COLORS, isSameDay } from '../data/events'
+import type { RendererCalendar } from '../lib/googleCalendarSync'
+import type { CreateCalendarEventDraft, RepeatEndType } from '../lib/googleCalendarCreate'
+import { addDays, addMonths, getNextMonday, getToday, useToday } from '../lib/today'
 
 // ── TimeInput ───────────────────────────────────────────────────────────────
 interface TimeInputProps {
@@ -174,7 +174,7 @@ function DatePicker({ value, onChange }: DatePickerProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [viewYear, setViewYear] = useState(value.getFullYear())
   const [viewMonth, setViewMonth] = useState(value.getMonth())
-  const today = new Date(2026, 2, 28)
+  const today = useToday()
 
   const cells = getMiniGrid(viewYear, viewMonth)
   const monthLabel = new Date(viewYear, viewMonth).toLocaleDateString('en-US', {
@@ -321,9 +321,9 @@ function DatePicker({ value, onChange }: DatePickerProps): React.JSX.Element {
           {/* Quick shortcuts */}
           <div className="flex items-center gap-1.5 mt-3">
             {[
-              { label: 'Today', date: new Date(2026, 2, 28) },
-              { label: 'Tomorrow', date: new Date(2026, 2, 29) },
-              { label: 'Next Mon', date: new Date(2026, 2, 30) }
+              { label: 'Today', date: today },
+              { label: 'Tomorrow', date: addDays(today, 1) },
+              { label: 'Next Mon', date: getNextMonday(today) }
             ].map(({ label, date }) => (
               <button
                 key={label}
@@ -357,26 +357,39 @@ function DatePicker({ value, onChange }: DatePickerProps): React.JSX.Element {
 interface NewEventPopoverProps {
   open: boolean
   onClose: () => void
+  calendars: RendererCalendar[]
+  onCreateEvent: (draft: CreateCalendarEventDraft) => Promise<void>
 }
 
 export default function NewEventPopover({
   open,
-  onClose
+  onClose,
+  calendars,
+  onCreateEvent
 }: NewEventPopoverProps): React.JSX.Element {
   const [title, setTitle] = useState('')
-  const [selectedDate, setSelectedDate] = useState(new Date(2026, 2, 28))
+  const [selectedDate, setSelectedDate] = useState(() => getToday())
   const [allDay, setAllDay] = useState(false)
   const [startTime, setStartTime] = useState('10:00 AM')
   const [endTime, setEndTime] = useState('11:00 AM')
-  const [calendar, setCalendar] = useState<CalendarName>('Work')
+  const [calendarId, setCalendarId] = useState(calendars[0]?.id ?? '')
   const [repeat, setRepeat] = useState(false)
   const [repeatDays, setRepeatDays] = useState<number[]>([])
   const [repeatEndType, setRepeatEndType] = useState<RepeatEndType>('date')
-  const [repeatUntil, setRepeatUntil] = useState(new Date(2026, 3, 28))
+  const [repeatUntil, setRepeatUntil] = useState(() => addMonths(getToday(), 1))
   const [repeatCount, setRepeatCount] = useState(4)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const DOW_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
   const DOW_FULL = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const selectedCalendar = calendars.find((item) => item.id === calendarId) ?? calendars[0] ?? null
+
+  useEffect(() => {
+    if (!selectedCalendar && calendars[0]) {
+      setCalendarId(calendars[0].id)
+    }
+  }, [calendars, selectedCalendar])
 
   const toggleRepeatDay = (idx: number): void => {
     setRepeatDays((prev) =>
@@ -384,8 +397,48 @@ export default function NewEventPopover({
     )
   }
 
+  const handleSubmit = async (): Promise<void> => {
+    if (!selectedCalendar) {
+      setSubmitError('Choose a calendar first')
+      return
+    }
+
+    setIsSubmitting(true)
+    setSubmitError(null)
+
+    try {
+      await onCreateEvent({
+        title,
+        selectedDate,
+        allDay,
+        startTime,
+        endTime,
+        calendarId: selectedCalendar.id,
+        calendarName: selectedCalendar.name,
+        color: selectedCalendar.color,
+        repeat,
+        repeatDays,
+        repeatEndType,
+        repeatUntil,
+        repeatCount
+      })
+      onClose()
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Could not create the event')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
-    <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
+    <Dialog.Root
+      open={open}
+      onOpenChange={(v) => {
+        if (!v && !isSubmitting) {
+          onClose()
+        }
+      }}
+    >
       <Dialog.Portal>
         {/* Overlay */}
         <Dialog.Overlay
@@ -408,7 +461,13 @@ export default function NewEventPopover({
             borderRadius: 14,
             boxShadow: '0 32px 64px rgba(0,0,0,0.55), 0 4px 16px rgba(0,0,0,0.3)'
           }}
-          onPointerDownOutside={onClose}
+          onPointerDownOutside={(event) => {
+            if (isSubmitting) {
+              event.preventDefault()
+            } else {
+              onClose()
+            }
+          }}
         >
           {/* ── Header ── */}
           <div className="flex items-center justify-between px-4 pt-4 pb-2">
@@ -420,6 +479,7 @@ export default function NewEventPopover({
             </Dialog.Title>
             <Dialog.Close asChild>
               <button
+                disabled={isSubmitting}
                 className="flex items-center justify-center w-6 h-6 rounded-md transition-colors"
                 style={{ color: 'var(--text-muted)' }}
                 onMouseEnter={(e) => {
@@ -440,6 +500,7 @@ export default function NewEventPopover({
           <div className="px-4 pb-3">
             <input
               autoFocus
+              disabled={isSubmitting}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Event title"
@@ -474,6 +535,7 @@ export default function NewEventPopover({
           {/* ── All-day toggle ── */}
           <div className="flex items-center gap-2 px-4 pb-3">
             <button
+              disabled={isSubmitting}
               onClick={() => setAllDay(!allDay)}
               className="flex items-center gap-2 text-xs transition-colors select-none"
               style={{ color: allDay ? 'var(--accent-text)' : 'var(--text-muted)' }}
@@ -500,6 +562,7 @@ export default function NewEventPopover({
           <div className="flex items-center gap-2 px-4 py-3">
             <Repeat size={14} style={{ color: repeat ? 'var(--accent-text)' : 'var(--text-muted)', flexShrink: 0 }} />
             <button
+              disabled={isSubmitting}
               onClick={() => setRepeat(!repeat)}
               className="flex items-center gap-2 text-xs transition-colors select-none"
               style={{ color: repeat ? 'var(--accent-text)' : 'var(--text-muted)' }}
@@ -538,6 +601,7 @@ export default function NewEventPopover({
                       <button
                         key={idx}
                         title={DOW_FULL[idx]}
+                        disabled={isSubmitting}
                         onClick={() => toggleRepeatDay(idx)}
                         className="flex items-center justify-center rounded-full text-[11px] font-semibold transition-all duration-100"
                         style={{
@@ -613,6 +677,7 @@ export default function NewEventPopover({
                       type="number"
                       min={1}
                       max={999}
+                      disabled={isSubmitting}
                       value={repeatCount}
                       onChange={(e) => setRepeatCount(Math.max(1, parseInt(e.target.value) || 1))}
                       className="w-14 text-xs px-2 py-1 rounded-md outline-none text-center"
@@ -642,12 +707,13 @@ export default function NewEventPopover({
               Calendar
             </p>
             <div className="flex items-center gap-1.5 flex-wrap">
-              {CALENDARS.map((cal) => {
-                const active = calendar === cal.name
+              {calendars.map((cal) => {
+                const active = calendarId === cal.id
                 return (
                   <button
-                    key={cal.name}
-                    onClick={() => setCalendar(cal.name)}
+                    key={cal.id}
+                    disabled={isSubmitting}
+                    onClick={() => setCalendarId(cal.id)}
                     className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-100"
                     style={{
                       background: active ? 'var(--surface-3)' : 'transparent',
@@ -672,13 +738,27 @@ export default function NewEventPopover({
             </div>
           </div>
 
-
+          {submitError && (
+            <div className="px-4 pb-2">
+              <div
+                className="rounded-lg px-3 py-2 text-xs leading-snug"
+                style={{
+                  background: 'rgba(192,120,96,0.12)',
+                  color: '#C98A76',
+                  border: '1px solid rgba(192,120,96,0.28)'
+                }}
+              >
+                {submitError}
+              </div>
+            </div>
+          )}
 
           <div style={{ height: 1, background: 'var(--border)' }} />
 
           {/* ── Footer ── */}
           <div className="flex items-center justify-end gap-2 px-4 py-3">
             <button
+              disabled={isSubmitting}
               onClick={onClose}
               className="px-3 py-1.5 rounded-md text-xs font-medium transition-colors"
               style={{ color: 'var(--text-muted)' }}
@@ -694,12 +774,14 @@ export default function NewEventPopover({
               Cancel
             </button>
             <button
+              disabled={isSubmitting || calendars.length === 0}
+              onClick={() => void handleSubmit()}
               className="px-4 py-1.5 rounded-md text-xs font-semibold transition-all duration-100"
               style={{ background: 'var(--accent)', color: 'var(--accent-on)' }}
               onMouseEnter={(e) => (e.currentTarget.style.filter = 'brightness(1.08)')}
               onMouseLeave={(e) => (e.currentTarget.style.filter = 'none')}
             >
-              Create Event
+              {isSubmitting ? 'Creating...' : 'Create Event'}
             </button>
           </div>
         </Dialog.Content>

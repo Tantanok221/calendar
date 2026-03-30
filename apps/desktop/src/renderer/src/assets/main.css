@@ -19,6 +19,12 @@
   --traffic-light-h: 36px;
 }
 
+/* ── Utility animations ────────────────────────────────── */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 /* ── Radix UI / shadcn animations ──────────────────────── */
 @keyframes overlay-in {
   from {
