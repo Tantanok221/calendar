@@ -31,6 +31,7 @@ describe('buildGoogleCalendarPresentation', () => {
           calendarId: 'primary',
           status: 'confirmed',
           title: 'Standup',
+          location: 'Room 301',
           htmlLink: null,
           allDay: false,
           start: {
@@ -54,6 +55,7 @@ describe('buildGoogleCalendarPresentation', () => {
       {
         id: 'google:primary:evt-1',
         title: 'Standup',
+        location: 'Room 301',
         date: '2026-03-30',
         startTime: '09:00',
         endTime: '09:30',
@@ -94,6 +96,7 @@ describe('buildGoogleCalendarPresentation', () => {
           calendarId: 'team',
           status: 'confirmed',
           title: 'Offsite',
+          location: 'Penang',
           htmlLink: null,
           allDay: true,
           start: {
@@ -114,6 +117,7 @@ describe('buildGoogleCalendarPresentation', () => {
       {
         id: 'google:team:offsite:0',
         title: 'Offsite',
+        location: 'Penang',
         date: '2026-04-02',
         allDay: true,
         color: 'green',
@@ -128,6 +132,7 @@ describe('buildGoogleCalendarPresentation', () => {
       {
         id: 'google:team:offsite:1',
         title: 'Offsite',
+        location: 'Penang',
         date: '2026-04-03',
         allDay: true,
         color: 'green',

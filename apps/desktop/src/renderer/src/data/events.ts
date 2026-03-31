@@ -11,6 +11,7 @@ export interface GoogleEventSource {
 export interface CalendarEvent {
   id: string
   title: string
+  location?: string
   date: string // 'YYYY-MM-DD'
   startTime?: string // 'HH:MM' 24h
   endTime?: string

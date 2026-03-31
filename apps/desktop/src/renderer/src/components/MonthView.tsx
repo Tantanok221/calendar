@@ -6,6 +6,7 @@ import { computeAnchor } from '../lib/eventPopoverAnchor'
 import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
 import { isCalendarEventEditable } from '../lib/calendarPermissions'
+import { getEventPrimaryLabel } from '../lib/eventLocationDisplay'
 import EventDetailPopover from './EventDetailPopover'
 
 const DOW_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -61,7 +62,7 @@ function EventPill({
       onMouseLeave={(e) => (e.currentTarget.style.filter = 'none')}
     >
       <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: c.dot }} />
-      <span className="truncate font-medium">{event.title}</span>
+      <span className="truncate font-medium">{getEventPrimaryLabel(event)}</span>
     </motion.div>
   )
 }

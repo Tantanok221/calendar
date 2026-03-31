@@ -106,6 +106,7 @@ export async function updateGoogleCalendarEvent(
       },
       body: JSON.stringify({
         summary: input.summary,
+        location: input.location,
         start: toGoogleDateTimePayload(input.start),
         end: toGoogleDateTimePayload(input.end)
       })
@@ -170,6 +171,7 @@ export async function createGoogleCalendarEvent(
       },
       body: JSON.stringify({
         summary: input.summary,
+        ...(input.location ? { location: input.location } : {}),
         start: toGoogleDateTimePayload(input.start),
         end: toGoogleDateTimePayload(input.end),
         recurrence: input.recurrence

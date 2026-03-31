@@ -7,6 +7,7 @@ import {
 
 const BASE_DRAFT: CreateCalendarEventDraft = {
   title: 'Ship launch',
+  location: 'Harbor Room',
   selectedDate: new Date(2026, 2, 30),
   allDay: false,
   startTime: '10:00 AM',
@@ -26,6 +27,7 @@ describe('buildGoogleCalendarCreateInput', () => {
     expect(buildGoogleCalendarCreateInput(BASE_DRAFT, 'Asia/Kuala_Lumpur')).toEqual({
       calendarId: 'primary',
       summary: 'Ship launch',
+      location: 'Harbor Room',
       start: {
         dateTime: '2026-03-30T10:00:00.000',
         date: null,
@@ -56,6 +58,7 @@ describe('buildGoogleCalendarCreateInput', () => {
     ).toEqual({
       calendarId: 'primary',
       summary: 'Ship launch',
+      location: 'Harbor Room',
       start: {
         dateTime: null,
         date: '2026-03-30',
@@ -90,6 +93,7 @@ describe('buildLocalEventsFromDraft', () => {
     ])
     expect(events[0]).toMatchObject({
       title: 'Ship launch',
+      location: 'Harbor Room',
       startTime: '10:00',
       endTime: '11:30',
       allDay: false,
