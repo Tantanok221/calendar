@@ -4,6 +4,7 @@ import type { CalendarEvent } from '../data/events'
 export const SNAP_MINUTES = 30
 export type CalendarDropView = 'day' | 'week'
 export type CalendarDropLane = 'timed' | 'all-day'
+export type TimedEventResizeEdge = 'start' | 'end'
 export interface TimedSelectionRange {
   startMinutes: number
   endMinutes: number
@@ -101,6 +102,19 @@ export function getTimedSlotStartMinutes(
   const snappedMinutes = Math.floor(rawMinutes / snapMinutes) * snapMinutes
 
   return clampEventStartMinutes(snappedMinutes, snapMinutes, dayStartMinutes, dayEndMinutes)
+}
+
+export function getTimedResizeBoundaryMinutes(
+  offsetPx: number,
+  hourHeight: number = HOUR_HEIGHT,
+  dayStartMinutes: number = START_HOUR * 60,
+  dayEndMinutes: number = END_HOUR * 60,
+  snapMinutes: number = SNAP_MINUTES
+): number {
+  const rawMinutes = dayStartMinutes + (Math.max(0, offsetPx) / hourHeight) * 60
+  const snappedMinutes = roundToSnap(rawMinutes, snapMinutes)
+
+  return Math.min(Math.max(snappedMinutes, dayStartMinutes), dayEndMinutes)
 }
 
 export function getTimedSelectionRange(
@@ -203,6 +217,49 @@ export function rescheduleTimedEvent(
   return {
     ...event,
     date: toDateStr(date),
+    startTime: minutesToTime(nextStartMinutes),
+    endTime: minutesToTime(nextEndMinutes)
+  }
+}
+
+interface ResizeTimedEventInput {
+  edge: TimedEventResizeEdge
+  boundaryMinutes: number
+  dayStartMinutes?: number
+  dayEndMinutes?: number
+  minDurationMinutes?: number
+}
+
+export function resizeTimedEvent(
+  event: CalendarEvent,
+  {
+    edge,
+    boundaryMinutes,
+    dayStartMinutes = START_HOUR * 60,
+    dayEndMinutes = END_HOUR * 60,
+    minDurationMinutes = SNAP_MINUTES
+  }: ResizeTimedEventInput
+): CalendarEvent {
+  if (event.allDay || !event.startTime || !event.endTime) return event
+
+  const currentStartMinutes = timeToMinutes(event.startTime)
+  const currentEndMinutes = timeToMinutes(event.endTime)
+  const snappedBoundaryMinutes = Math.min(
+    Math.max(roundToSnap(boundaryMinutes, minDurationMinutes), dayStartMinutes),
+    dayEndMinutes
+  )
+
+  const nextStartMinutes =
+    edge === 'start'
+      ? Math.min(snappedBoundaryMinutes, currentEndMinutes - minDurationMinutes)
+      : currentStartMinutes
+  const nextEndMinutes =
+    edge === 'end'
+      ? Math.max(snappedBoundaryMinutes, currentStartMinutes + minDurationMinutes)
+      : currentEndMinutes
+
+  return {
+    ...event,
     startTime: minutesToTime(nextStartMinutes),
     endTime: minutesToTime(nextEndMinutes)
   }
