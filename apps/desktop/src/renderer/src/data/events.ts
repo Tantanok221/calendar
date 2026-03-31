@@ -398,6 +398,6 @@ export const timeToMinutes = (t: string): number => {
   return h * 60 + m
 }
 
-export const START_HOUR = 7
-export const END_HOUR = 21
+export const START_HOUR = 0
+export const END_HOUR = 24
 export const HOUR_HEIGHT = 64 // px per hour

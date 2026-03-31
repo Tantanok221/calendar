@@ -21,9 +21,10 @@ import {
   rescheduleTimedEvent,
   SNAP_MINUTES
 } from '../lib/calendarDrag'
+import { buildCalendarHours, formatCalendarHour } from '../lib/calendarHours'
 import EventDetailPopover from './EventDetailPopover'
 
-const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i)
+const HOURS = buildCalendarHours(START_HOUR, END_HOUR)
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const SLOT_HEIGHT = (SNAP_MINUTES / 60) * HOUR_HEIGHT
 const SLOT_STARTS = Array.from(
@@ -36,12 +37,6 @@ type DragStartPayload = Parameters<
 type DragEndPayload = Parameters<
   NonNullable<React.ComponentProps<typeof DragDropProvider>['onDragEnd']>
 >[0]
-
-function formatHour(h: number): string {
-  if (h === 0) return '12 AM'
-  if (h === 12) return '12 PM'
-  return h < 12 ? `${h} AM` : `${h - 12} PM`
-}
 
 function topPx(time: string): number {
   return ((timeToMinutes(time) - START_HOUR * 60) / 60) * HOUR_HEIGHT
@@ -466,7 +461,7 @@ export default function WeekView({
                     color: 'var(--text-dim)'
                   }}
                 >
-                  {formatHour(hour)}
+                  {formatCalendarHour(hour)}
                 </span>
               ))}
             </div>
