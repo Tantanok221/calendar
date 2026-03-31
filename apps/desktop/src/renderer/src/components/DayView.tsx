@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { DragDropProvider, useDraggable, useDroppable } from '@dnd-kit/react'
 import {
   EVENT_COLORS,
@@ -87,9 +88,13 @@ function TimedEventCard({
   const short = height < 44
 
   return (
-    <div
+    <motion.div
       ref={elementRef}
       className="event-block"
+      initial={{ opacity: 0, y: 5 }}
+      animate={{ opacity: dragging ? 0.28 : 1, y: 0 }}
+      exit={{ opacity: 0, y: -3 }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
       onClick={(e) => {
         e.stopPropagation()
         onClick(e, event)
@@ -105,7 +110,6 @@ function TimedEventCard({
         outline: selected ? `1px solid ${color.dot}` : 'none',
         outlineOffset: -1,
         cursor: dragging ? 'grabbing' : 'grab',
-        opacity: dragging ? 0.28 : 1,
         zIndex: dragging ? 20 : selected ? 12 : 2,
         touchAction: 'none',
         boxShadow: dragging ? '0 10px 24px rgba(0,0,0,0.22)' : 'none'
@@ -120,7 +124,7 @@ function TimedEventCard({
       {!short && event.calendar && (
         <p className="text-[10px] mt-0.5 opacity-50">{event.calendar}</p>
       )}
-    </div>
+    </motion.div>
   )
 }
 
@@ -165,9 +169,13 @@ function AllDayEventPill({
   const color = EVENT_COLORS[event.color]
 
   return (
-    <div
+    <motion.div
       ref={elementRef}
       className="px-2 py-0.5 rounded text-[11px] font-medium"
+      initial={{ opacity: 0, x: -4 }}
+      animate={{ opacity: dragging ? 0.28 : 1, x: 0 }}
+      exit={{ opacity: 0, x: -4 }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
       onClick={(e) => {
         e.stopPropagation()
         onClick(e, event)
@@ -178,13 +186,12 @@ function AllDayEventPill({
         outline: selected ? `1px solid ${color.dot}` : 'none',
         outlineOffset: -1,
         cursor: dragging ? 'grabbing' : 'grab',
-        opacity: dragging ? 0.28 : 1,
         boxShadow: dragging ? '0 10px 24px rgba(0,0,0,0.22)' : 'none',
         touchAction: 'none'
       }}
     >
       {event.title}
-    </div>
+    </motion.div>
   )
 }
 
@@ -422,16 +429,16 @@ export default function DayView({
             >
               All day
             </span>
-            {allDayEvents.map((event) => {
-              return (
+            <AnimatePresence>
+              {allDayEvents.map((event) => (
                 <DraggableAllDayEventPill
                   key={event.id}
                   event={event}
                   selected={selectedEventId === event.id}
                   onClick={handleEventClick}
                 />
-              )
-            })}
+              ))}
+            </AnimatePresence>
           </AllDayDropSlot>
         )}
 
@@ -483,14 +490,16 @@ export default function DayView({
                 />
               ))}
 
-              {timedEvents.map((event) => (
-                <DraggableEventBlock
-                  key={event.id}
-                  event={event}
-                  selected={selectedEventId === event.id}
-                  onClick={handleEventClick}
-                />
-              ))}
+              <AnimatePresence>
+                {timedEvents.map((event) => (
+                  <DraggableEventBlock
+                    key={event.id}
+                    event={event}
+                    selected={selectedEventId === event.id}
+                    onClick={handleEventClick}
+                  />
+                ))}
+              </AnimatePresence>
 
               {isToday && nowPx >= 0 && (
                 <div className="now-line" style={{ top: nowPx }}>

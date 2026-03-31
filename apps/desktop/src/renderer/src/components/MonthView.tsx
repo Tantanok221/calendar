@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { EVENT_COLORS, isSameDay, toDateStr } from '../data/events'
 import type { CalendarEvent } from '../data/events'
 import { computeAnchor } from '../lib/eventPopoverAnchor'
@@ -30,7 +31,12 @@ function EventPill({
 }): React.JSX.Element {
   const c = EVENT_COLORS[event.color]
   return (
-    <div
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.88 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.88 }}
+      transition={{ duration: 0.14, ease: 'easeOut' }}
       className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-tight truncate cursor-pointer transition-all duration-100 mb-0.5"
       style={{
         background: selected ? c.pillBg.replace('0.18', '0.32') : c.pillBg,
@@ -47,7 +53,7 @@ function EventPill({
     >
       <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: c.dot }} />
       <span className="truncate font-medium">{event.title}</span>
-    </div>
+    </motion.div>
   )
 }
 
@@ -171,14 +177,16 @@ export default function MonthView({
 
                   {/* Events */}
                   <div>
-                    {shown.map((e) => (
-                      <EventPill
-                        key={e.id}
-                        event={e}
-                        selected={selectedEventId === e.id}
-                        onClick={handleEventClick}
-                      />
-                    ))}
+                    <AnimatePresence>
+                      {shown.map((e) => (
+                        <EventPill
+                          key={e.id}
+                          event={e}
+                          selected={selectedEventId === e.id}
+                          onClick={handleEventClick}
+                        />
+                      ))}
+                    </AnimatePresence>
                     {extra > 0 && (
                       <div
                         className="text-[10px] px-1.5 font-medium"

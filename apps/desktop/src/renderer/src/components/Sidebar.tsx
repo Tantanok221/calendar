@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AnimatePresence, motion, useAnimation } from 'framer-motion'
 import { CaretLeft, CaretRight, Plus } from '@phosphor-icons/react'
 import { EVENT_COLORS, getWeekStart, isSameDay } from '../data/events'
 import type { CalendarEvent } from '../data/events'
@@ -146,12 +147,19 @@ function MiniCalendar({
               }}
             >
               <span className="text-[11px] leading-none font-medium">{day}</span>
-              {hasEvent && !isT && (
-                <span
-                  className="absolute bottom-0.5 w-1 h-1 rounded-full"
-                  style={{ background: 'var(--accent)' }}
-                />
-              )}
+              <AnimatePresence>
+                {hasEvent && !isT && (
+                  <motion.span
+                    key="dot"
+                    initial={{ opacity: 0, scale: 0.4 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.4 }}
+                    transition={{ duration: 0.15, ease: 'easeOut' }}
+                    className="absolute bottom-0.5 w-1 h-1 rounded-full"
+                    style={{ background: 'var(--accent)' }}
+                  />
+                )}
+              </AnimatePresence>
             </button>
           )
         })}
@@ -160,23 +168,71 @@ function MiniCalendar({
   )
 }
 
+interface CalendarItemProps {
+  label: string
+  dotColor: string
+  isHidden: boolean
+  onToggle: () => void
+}
+
+function CalendarItem({ label, dotColor, isHidden, onToggle }: CalendarItemProps): React.JSX.Element {
+  const controls = useAnimation()
+
+  const handleClick = (): void => {
+    void controls.start({
+      scale: [1, 0.78, 1.08, 0.96, 1],
+      transition: { duration: 0.3, ease: 'easeOut' }
+    })
+    onToggle()
+  }
+
+  return (
+    <button
+      onClick={handleClick}
+      className="flex items-center gap-2 px-1.5 h-7 rounded-md cursor-pointer transition-colors text-left w-full"
+      onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-2)')}
+      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+    >
+      <motion.span
+        animate={controls}
+        className="w-2.5 h-2.5 rounded-full shrink-0"
+        style={
+          isHidden
+            ? { background: 'transparent', border: `1.5px solid ${dotColor}`, display: 'block' }
+            : { background: dotColor, display: 'block' }
+        }
+      />
+      <span
+        className="text-xs transition-colors"
+        style={{ color: isHidden ? 'var(--text-dim)' : 'var(--text-muted)' }}
+      >
+        {label}
+      </span>
+    </button>
+  )
+}
+
 interface SidebarProps {
   calendars?: RendererCalendar[]
   events: CalendarEvent[]
+  hiddenCalendars: Set<string>
   currentDate: Date
   today: Date
   view: ViewType
   onDateSelect: (d: Date) => void
+  onToggleCalendarVisibility: (name: string) => void
   onCreateEvent: (draft: CreateCalendarEventDraft) => Promise<void>
 }
 
 export default function Sidebar({
   calendars = DEFAULT_RENDERER_CALENDARS,
   events,
+  hiddenCalendars,
   currentDate,
   today,
   view,
   onDateSelect,
+  onToggleCalendarVisibility,
   onCreateEvent
 }: SidebarProps): React.JSX.Element {
   const [showNewEvent, setShowNewEvent] = useState(false)
@@ -247,20 +303,13 @@ export default function Sidebar({
         </p>
         <div className="flex flex-col gap-0.5">
           {calendars.map((cal) => (
-            <label
+            <CalendarItem
               key={cal.name}
-              className="flex items-center gap-2 px-1.5 h-7 rounded-md cursor-pointer transition-colors"
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-2)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-            >
-              <span
-                className="w-2.5 h-2.5 rounded-full shrink-0"
-                style={{ background: EVENT_COLORS[cal.color].dot }}
-              />
-              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                {cal.name}
-              </span>
-            </label>
+              label={cal.name}
+              dotColor={EVENT_COLORS[cal.color].dot}
+              isHidden={hiddenCalendars.has(cal.name)}
+              onToggle={() => onToggleCalendarVisibility(cal.name)}
+            />
           ))}
         </div>
       </div>
@@ -276,19 +325,12 @@ export default function Sidebar({
         >
           Other
         </p>
-        <label
-          className="flex items-center gap-2 px-1.5 h-7 rounded-md cursor-pointer transition-colors"
-          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-2)')}
-          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-        >
-          <span
-            className="w-2.5 h-2.5 rounded-full shrink-0"
-            style={{ background: 'rgba(215,206,178,0.35)' }}
-          />
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Holidays
-          </span>
-        </label>
+        <CalendarItem
+          label="Holidays"
+          dotColor="rgba(215,206,178,0.55)"
+          isHidden={hiddenCalendars.has('Holidays')}
+          onToggle={() => onToggleCalendarVisibility('Holidays')}
+        />
       </div>
     </div>
   )
