@@ -5,7 +5,11 @@ import { X, CalendarBlank, Clock, CaretDown, CaretLeft, CaretRight, Repeat } fro
 import { cn } from '../lib/utils'
 import { getClosestTimeSuggestion, getTimeSuggestions } from '../lib/timeSuggestions'
 import { EVENT_COLORS, isSameDay } from '../data/events'
-import { partitionRendererCalendars, type RendererCalendar } from '../lib/googleCalendarSync'
+import type { RendererCalendar } from '../lib/googleCalendarSync'
+import {
+  getDefaultWritableCalendarId,
+  getWritableCalendars
+} from '../lib/calendarPermissions'
 import type { CreateCalendarEventDraft, RepeatEndType } from '../lib/googleCalendarCreate'
 import { shouldSubmitOnEnterKeyDown } from '../lib/keyboardSubmit'
 import { addDays, addMonths, getNextMonday, getToday, useToday } from '../lib/today'
@@ -375,12 +379,13 @@ export default function NewEventPopover({
   onCreateEvent,
   initialValues
 }: NewEventPopoverProps): React.JSX.Element {
+  const writableCalendars = getWritableCalendars(calendars)
   const [title, setTitle] = useState('')
   const [selectedDate, setSelectedDate] = useState(() => initialValues?.selectedDate ?? getToday())
   const [allDay, setAllDay] = useState(() => initialValues?.allDay ?? false)
   const [startTime, setStartTime] = useState(() => initialValues?.startTime ?? '10:00 AM')
   const [endTime, setEndTime] = useState(() => initialValues?.endTime ?? '11:00 AM')
-  const [calendarId, setCalendarId] = useState(calendars[0]?.id ?? '')
+  const [calendarId, setCalendarId] = useState(() => getDefaultWritableCalendarId(calendars))
   const [repeat, setRepeat] = useState(false)
   const [repeatDays, setRepeatDays] = useState<number[]>([])
   const [repeatEndType, setRepeatEndType] = useState<RepeatEndType>('date')
@@ -393,14 +398,16 @@ export default function NewEventPopover({
 
   const DOW_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
   const DOW_FULL = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-  const selectedCalendar = calendars.find((item) => item.id === calendarId) ?? calendars[0] ?? null
-  const { myCalendars, otherCalendars } = partitionRendererCalendars(calendars)
+  const selectedCalendar =
+    writableCalendars.find((item) => item.id === calendarId) ?? writableCalendars[0] ?? null
 
   useEffect(() => {
-    if (!selectedCalendar && calendars[0]) {
-      setCalendarId(calendars[0].id)
+    const nextCalendarId = getDefaultWritableCalendarId(calendars, calendarId)
+
+    if (nextCalendarId !== calendarId) {
+      setCalendarId(nextCalendarId)
     }
-  }, [calendars, selectedCalendar])
+  }, [calendarId, calendars])
 
   const toggleRepeatDay = (idx: number): void => {
     setRepeatDays((prev) =>
@@ -410,7 +417,7 @@ export default function NewEventPopover({
 
   const handleSubmit = async (): Promise<void> => {
     if (!selectedCalendar) {
-      setSubmitError('Choose a calendar first')
+      setSubmitError('Choose an editable calendar first')
       return
     }
 
@@ -738,13 +745,10 @@ export default function NewEventPopover({
             >
               Calendar
             </p>
-            {myCalendars.length > 0 && (
+            {writableCalendars.length > 0 ? (
               <div className="flex flex-col gap-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-dim)' }}>
-                  My Calendars
-                </p>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  {myCalendars.map((cal) => {
+                  {writableCalendars.map((cal) => {
                     const active = calendarId === cal.id
                     return (
                       <button
@@ -774,43 +778,10 @@ export default function NewEventPopover({
                   })}
                 </div>
               </div>
-            )}
-            {otherCalendars.length > 0 && (
-              <div className="flex flex-col gap-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-dim)' }}>
-                  Other Calendars
-                </p>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {otherCalendars.map((cal) => {
-                    const active = calendarId === cal.id
-                    return (
-                      <button
-                        key={cal.id}
-                        disabled={isSubmitting}
-                        onClick={() => setCalendarId(cal.id)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-100"
-                        style={{
-                          background: active ? 'var(--surface-3)' : 'transparent',
-                          border: `1px solid ${active ? 'var(--border-strong)' : 'var(--border)'}`,
-                          color: active ? 'var(--text)' : 'var(--text-muted)'
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!active) e.currentTarget.style.borderColor = 'var(--border-strong)'
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!active) e.currentTarget.style.borderColor = 'var(--border)'
-                        }}
-                      >
-                        <span
-                          className="w-2 h-2 rounded-full shrink-0"
-                          style={{ background: EVENT_COLORS[cal.color].dot }}
-                        />
-                        {cal.name}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
+            ) : (
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                No editable calendars available.
+              </p>
             )}
           </div>
 
@@ -850,7 +821,7 @@ export default function NewEventPopover({
               Cancel
             </button>
             <button
-              disabled={isSubmitting || calendars.length === 0}
+              disabled={isSubmitting || writableCalendars.length === 0}
               onClick={() => void handleSubmit()}
               className="px-4 py-1.5 rounded-md text-xs font-semibold transition-all duration-100"
               style={{ background: 'var(--accent)', color: 'var(--accent-on)' }}
