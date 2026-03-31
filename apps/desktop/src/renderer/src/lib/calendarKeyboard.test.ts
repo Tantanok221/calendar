@@ -1,8 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import {
-  getCalendarKeyboardAction,
-  getNavigatedDate
-} from './calendarKeyboard'
+import * as calendarKeyboard from './calendarKeyboard'
+
+const { getCalendarKeyboardAction, getNavigatedDate } = calendarKeyboard
 
 describe('calendar keyboard shortcuts', () => {
   test('moves the anchor date by the active view interval', () => {
@@ -64,6 +63,74 @@ describe('calendar keyboard shortcuts', () => {
 
   test('ignores unrelated keys', () => {
     expect(getCalendarKeyboardAction(createKeyboardEventLike('Enter'))).toBeNull()
+  })
+
+  test('matches an exact custom shortcut outside editable fields', () => {
+    expect(typeof (calendarKeyboard as Record<string, unknown>).matchesShortcut).toBe('function')
+
+    const matchesShortcut = (calendarKeyboard as Record<string, (...args: unknown[]) => unknown>)
+      .matchesShortcut
+
+    expect(
+      matchesShortcut(
+        createKeyboardEventLike('b', {
+          metaKey: true,
+          shiftKey: true
+        }),
+        {
+          modifiers: ['Meta', 'Shift'],
+          key: 'B'
+        }
+      )
+    ).toBe(true)
+    expect(
+      matchesShortcut(
+        createKeyboardEventLike('b', {
+          metaKey: true
+        }),
+        {
+          modifiers: ['Meta', 'Shift'],
+          key: 'B'
+        }
+      )
+    ).toBe(false)
+    expect(
+      matchesShortcut(
+        createKeyboardEventLike('b', {
+          metaKey: true,
+          shiftKey: true,
+          target: { tagName: 'INPUT' } as EventTarget
+        }),
+        {
+          modifiers: ['Meta', 'Shift'],
+          key: 'B'
+        }
+      )
+    ).toBe(false)
+  })
+
+  test('normalizes and restores a stored shortcut payload safely', () => {
+    expect(typeof (calendarKeyboard as Record<string, unknown>).serializeShortcut).toBe('function')
+    expect(typeof (calendarKeyboard as Record<string, unknown>).parseShortcut).toBe('function')
+
+    const serializeShortcut = (calendarKeyboard as Record<string, (...args: unknown[]) => unknown>)
+      .serializeShortcut
+    const parseShortcut = (calendarKeyboard as Record<string, (...args: unknown[]) => unknown>)
+      .parseShortcut
+
+    expect(
+      parseShortcut(
+        serializeShortcut({
+          modifiers: ['Shift', 'Meta'],
+          key: 'b'
+        })
+      )
+    ).toEqual({
+      modifiers: ['Meta', 'Shift'],
+      key: 'B'
+    })
+    expect(parseShortcut('{"modifiers":["wat"],"key":1}')).toBeNull()
+    expect(parseShortcut('not-json')).toBeNull()
   })
 })
 

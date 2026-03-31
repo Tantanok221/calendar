@@ -6,6 +6,7 @@ import WeekView from './components/WeekView'
 import DayView from './components/DayView'
 import GoogleCalendarLoginModal from './components/GoogleCalendarLoginModal'
 import SettingsModal from './components/SettingsModal'
+import FloatingDaySidebar from './components/FloatingDaySidebar'
 import { EVENTS, fromDateStr, isSameDay } from './data/events'
 import NewEventPopover from './components/NewEventPopover'
 import type { CalendarEvent } from './data/events'
@@ -38,7 +39,8 @@ import { filterVisibleCalendarEvents } from './lib/calendarVisibility'
 import {
   getCalendarKeyboardAction,
   getNavigatedDate,
-  getTodayAnchorDate
+  getTodayAnchorDate,
+  type ShortcutKeys
 } from './lib/calendarKeyboard'
 import { getToday, useToday } from './lib/today'
 import {
@@ -49,7 +51,11 @@ import {
 
 const DEFAULT_EVENTS = EVENTS.map((event) => ({ ...event }))
 
-function App(): React.JSX.Element {
+interface AppProps {
+  windowMode?: 'main' | 'panel'
+}
+
+function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
   const today = useToday()
   const [view, setView] = useState<ViewType>('week')
   const [currentDate, setCurrentDate] = useState<Date>(() => getToday())
@@ -65,12 +71,14 @@ function App(): React.JSX.Element {
   const [isGoogleConnectPending, setIsGoogleConnectPending] = useState(false)
   const [googleCalendarError, setGoogleCalendarError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [shortcutError, setShortcutError] = useState<string | null>(null)
   const [hiddenCalendars, setHiddenCalendars] = useState<Set<string>>(new Set())
   const [showNewEvent, setShowNewEvent] = useState(false)
   const [newEventKey, setNewEventKey] = useState(0)
   const [newEventDefaults, setNewEventDefaults] = useState<NewEventDraftDefaults | undefined>(
     undefined
   )
+  const [sidebarShortcut, setSidebarShortcut] = useState<ShortcutKeys | null>(null)
   const previousTodayRef = useRef(today)
 
   useEffect(() => {
@@ -187,6 +195,35 @@ function App(): React.JSX.Element {
       document.removeEventListener('keydown', onKeyDown)
     }
   }, [today, view])
+
+  useEffect(() => {
+    if (windowMode === 'panel') {
+      return
+    }
+
+    let cancelled = false
+
+    const loadFloatingSidebarShortcut = async (): Promise<void> => {
+      try {
+        const shortcutState = await window.api.shortcuts.getFloatingSidebarShortcut()
+
+        if (!cancelled) {
+          setSidebarShortcut(shortcutState.shortcut)
+          setShortcutError(shortcutState.errorMessage)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setShortcutError(error instanceof Error ? error.message : 'Unable to load global shortcut')
+        }
+      }
+    }
+
+    void loadFloatingSidebarShortcut()
+
+    return () => {
+      cancelled = true
+    }
+  }, [windowMode])
 
   const handleDateSelect = (d: Date): void => {
     setCurrentDate(d)
@@ -324,6 +361,21 @@ function App(): React.JSX.Element {
     }
   }
 
+  const handleSidebarShortcutChange = (shortcut: ShortcutKeys | null): void => {
+    void (async () => {
+      try {
+        const shortcutState = await window.api.shortcuts.setFloatingSidebarShortcut(shortcut)
+
+        setSidebarShortcut(shortcutState.shortcut)
+        setShortcutError(shortcutState.errorMessage)
+      } catch (error) {
+        setShortcutError(
+          error instanceof Error ? error.message : 'Unable to update global shortcut'
+        )
+      }
+    })()
+  }
+
   async function syncGoogleCalendarData(anchorDate: Date): Promise<void> {
     const calendarsToLoad =
       googleCalendars.length > 0 ? googleCalendars : await window.api.googleCalendar.listCalendars()
@@ -351,6 +403,30 @@ function App(): React.JSX.Element {
     shouldOpenGoogleCalendarLoginModal(googleCalendarStatus, isGoogleLoginDismissed)
   const visibleEvents = filterVisibleCalendarEvents(events, hiddenCalendars)
 
+  if (windowMode === 'panel') {
+    return (
+      <div className="h-screen overflow-hidden" style={{ background: 'var(--surface)' }}>
+        <FloatingDaySidebar
+          events={visibleEvents}
+          calendars={calendarOptions}
+          today={today}
+          onClose={() => window.close()}
+          onEventChange={handleEventChange}
+          onEventDelete={handleEventDelete}
+          onTimedSelectionCreate={handleTimedSelectionCreate}
+        />
+        <NewEventPopover
+          key={newEventKey}
+          open={showNewEvent}
+          onClose={() => setShowNewEvent(false)}
+          calendars={calendarOptions}
+          onCreateEvent={handleCreateEvent}
+          initialValues={newEventDefaults}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg)' }}>
       <GoogleCalendarLoginModal
@@ -367,6 +443,9 @@ function App(): React.JSX.Element {
         isConnectPending={isGoogleConnectPending}
         errorMessage={googleCalendarError}
         onGoogleConnect={handleGoogleCalendarConnect}
+        shortcutErrorMessage={shortcutError}
+        sidebarShortcut={sidebarShortcut}
+        onSidebarShortcutChange={handleSidebarShortcutChange}
       />
       <NewEventPopover
         key={newEventKey}
