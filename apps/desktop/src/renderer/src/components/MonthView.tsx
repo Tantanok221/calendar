@@ -5,8 +5,12 @@ import type { CalendarEvent } from '../data/events'
 import { computeAnchor } from '../lib/eventPopoverAnchor'
 import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
-import { isCalendarEventEditable } from '../lib/calendarPermissions'
+import {
+  getCalendarEventInteractionMode,
+  isCalendarEventEditable
+} from '../lib/calendarPermissions'
 import { getEventPrimaryLabel } from '../lib/eventLocationDisplay'
+import EventInfoPopover from './EventInfoPopover'
 import EventDetailPopover from './EventDetailPopover'
 
 const DOW_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -46,7 +50,7 @@ function EventPill({
       style={{
         background: selected ? c.pillBg.replace('0.18', '0.32') : c.pillBg,
         color: c.text,
-        cursor: editable ? 'pointer' : 'default',
+        cursor: 'pointer',
         outline: selected ? `1px solid ${c.dot}` : 'none',
         outlineOffset: -1
       }}
@@ -91,19 +95,21 @@ export default function MonthView({
   const cells = getMonthGrid(year, month)
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const [popoverAnchor, setPopoverAnchor] = useState<PopoverAnchor | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? null
+
+  const clearSelection = (): void => {
+    setSelectedEventId(null)
+    setPopoverAnchor(null)
+    setShowEditModal(false)
+  }
 
   const eventsForDate = (date: Date): CalendarEvent[] =>
     events.filter((event) => event.date === toDateStr(date))
 
   const handleEventClick = (e: React.MouseEvent, event: CalendarEvent): void => {
-    if (!isCalendarEventEditable(event, calendars)) {
-      return
-    }
-
     if (selectedEventId === event.id) {
-      setSelectedEventId(null)
-      setPopoverAnchor(null)
+      clearSelection()
       return
     }
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -116,20 +122,31 @@ export default function MonthView({
       className="flex flex-col h-full"
       style={{ background: 'var(--bg)' }}
       onClick={() => {
-        setSelectedEventId(null)
-        setPopoverAnchor(null)
+        clearSelection()
       }}
     >
-      {selectedEvent && popoverAnchor && (
-        <EventDetailPopover
+      {selectedEvent && popoverAnchor && !showEditModal && (
+        <EventInfoPopover
           event={selectedEvent}
           anchor={popoverAnchor}
+          calendars={calendars}
+          editable={getCalendarEventInteractionMode(selectedEvent, calendars) === 'edit'}
+          onEdit={() => setShowEditModal(true)}
+          onDelete={async (ev) => {
+            await onEventDelete(ev)
+            clearSelection()
+          }}
+          onClose={() => clearSelection()}
+        />
+      )}
+      {selectedEvent && showEditModal && (
+        <EventDetailPopover
+          event={selectedEvent}
           calendars={calendars}
           onSave={onEventChange}
           onDelete={onEventDelete}
           onClose={() => {
-            setSelectedEventId(null)
-            setPopoverAnchor(null)
+            clearSelection()
           }}
         />
       )}

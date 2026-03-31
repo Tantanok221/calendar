@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { CalendarEvent } from '../data/events'
 import type { RendererCalendar } from './googleCalendarSync'
 import {
+  getCalendarEventInteractionMode,
   getDefaultWritableCalendarId,
   getWritableCalendars,
   isCalendarEventEditable
@@ -92,5 +93,49 @@ describe('isCalendarEventEditable', () => {
     }
 
     expect(isCalendarEventEditable(event, CALENDARS)).toBe(false)
+  })
+})
+
+describe('getCalendarEventInteractionMode', () => {
+  test('returns edit mode for events on writable calendars', () => {
+    const event: CalendarEvent = {
+      id: 'google:primary:evt-3',
+      title: 'Planning',
+      date: '2026-03-31',
+      startTime: '13:00',
+      endTime: '14:00',
+      allDay: false,
+      color: 'violet',
+      calendar: 'Work',
+      source: {
+        provider: 'google',
+        calendarId: 'primary',
+        eventId: 'evt-3',
+        timeZone: 'Asia/Kuala_Lumpur'
+      }
+    }
+
+    expect(getCalendarEventInteractionMode(event, CALENDARS)).toBe('edit')
+  })
+
+  test('returns view mode for events on read-only calendars', () => {
+    const event: CalendarEvent = {
+      id: 'google:readonly:evt-4',
+      title: 'Board Review',
+      date: '2026-03-31',
+      startTime: '15:00',
+      endTime: '16:00',
+      allDay: false,
+      color: 'blue',
+      calendar: 'Leadership',
+      source: {
+        provider: 'google',
+        calendarId: 'readonly',
+        eventId: 'evt-4',
+        timeZone: 'Asia/Kuala_Lumpur'
+      }
+    }
+
+    expect(getCalendarEventInteractionMode(event, CALENDARS)).toBe('view')
   })
 })
