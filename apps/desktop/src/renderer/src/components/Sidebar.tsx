@@ -4,7 +4,11 @@ import { EVENT_COLORS, getWeekStart, isSameDay } from '../data/events'
 import type { CalendarEvent } from '../data/events'
 import type { ViewType } from './TopBar'
 import NewEventPopover from './NewEventPopover'
-import { DEFAULT_RENDERER_CALENDARS, type RendererCalendar } from '../lib/googleCalendarSync'
+import {
+  DEFAULT_RENDERER_CALENDARS,
+  partitionRendererCalendars,
+  type RendererCalendar
+} from '../lib/googleCalendarSync'
 import type { CreateCalendarEventDraft } from '../lib/googleCalendarCreate'
 
 const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
@@ -181,6 +185,7 @@ export default function Sidebar({
 }: SidebarProps): React.JSX.Element {
   const [showNewEvent, setShowNewEvent] = useState(false)
   const [newEventKey, setNewEventKey] = useState(0)
+  const { myCalendars, otherCalendars } = partitionRendererCalendars(calendars)
 
   const openNewEvent = (): void => {
     setNewEventKey((value) => value + 1)
@@ -239,57 +244,68 @@ export default function Sidebar({
 
       {/* Calendars */}
       <div className="px-3 py-2">
-        <p
-          className="text-[10px] font-semibold uppercase tracking-widest mb-1.5"
-          style={{ color: 'var(--text-dim)' }}
-        >
-          My Calendars
-        </p>
-        <div className="flex flex-col gap-0.5">
-          {calendars.map((cal) => (
-            <label
-              key={cal.name}
-              className="flex items-center gap-2 px-1.5 h-7 rounded-md cursor-pointer transition-colors"
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-2)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+        {myCalendars.length > 0 && (
+          <>
+            <p
+              className="text-[10px] font-semibold uppercase tracking-widest mb-1.5"
+              style={{ color: 'var(--text-dim)' }}
             >
-              <span
-                className="w-2.5 h-2.5 rounded-full shrink-0"
-                style={{ background: EVENT_COLORS[cal.color].dot }}
-              />
-              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                {cal.name}
-              </span>
-            </label>
-          ))}
-        </div>
+              My Calendars
+            </p>
+            <div className="flex flex-col gap-0.5">
+              {myCalendars.map((cal) => (
+                <label
+                  key={cal.id}
+                  className="flex items-center gap-2 px-1.5 h-7 rounded-md cursor-pointer transition-colors"
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-2)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ background: EVENT_COLORS[cal.color].dot }}
+                  />
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {cal.name}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Divider */}
-      <div className="mx-3 my-1" style={{ height: 1, background: 'var(--border)' }} />
+      {otherCalendars.length > 0 && (
+        <>
+          <div className="mx-3 my-1" style={{ height: 1, background: 'var(--border)' }} />
 
-      {/* Other calendars */}
-      <div className="px-3 py-2">
-        <p
-          className="text-[10px] font-semibold uppercase tracking-widest mb-1.5"
-          style={{ color: 'var(--text-dim)' }}
-        >
-          Other
-        </p>
-        <label
-          className="flex items-center gap-2 px-1.5 h-7 rounded-md cursor-pointer transition-colors"
-          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-2)')}
-          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-        >
-          <span
-            className="w-2.5 h-2.5 rounded-full shrink-0"
-            style={{ background: 'rgba(215,206,178,0.35)' }}
-          />
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Holidays
-          </span>
-        </label>
-      </div>
+          <div className="px-3 py-2">
+            <p
+              className="text-[10px] font-semibold uppercase tracking-widest mb-1.5"
+              style={{ color: 'var(--text-dim)' }}
+            >
+              Other Calendars
+            </p>
+            <div className="flex flex-col gap-0.5">
+              {otherCalendars.map((cal) => (
+                <label
+                  key={cal.id}
+                  className="flex items-center gap-2 px-1.5 h-7 rounded-md cursor-pointer transition-colors"
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-2)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ background: EVENT_COLORS[cal.color].dot }}
+                  />
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                    {cal.name}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

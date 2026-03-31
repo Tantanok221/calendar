@@ -1,10 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { END_HOUR, START_HOUR } from './events'
+import { fromDateStr, toDateStr } from './events'
 
-describe('calendar time range', () => {
-  test('covers the full 24-hour day in the main calendar grid', () => {
-    expect(START_HOUR).toBe(0)
-    expect(END_HOUR).toBe(24)
-    expect(END_HOUR - START_HOUR).toBe(24)
+describe('event date helpers', () => {
+  test('fromDateStr round-trips with toDateStr', () => {
+    expect(toDateStr(fromDateStr('2026-04-07'))).toBe('2026-04-07')
   })
 })

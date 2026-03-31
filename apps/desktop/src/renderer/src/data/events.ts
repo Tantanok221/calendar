@@ -371,6 +371,11 @@ export const isSameDay = (a: Date, b: Date): boolean =>
 export const toDateStr = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
+export const fromDateStr = (dateStr: string): Date => {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 export const getEventsForDate = (d: Date): CalendarEvent[] =>
   EVENTS.filter((e) => e.date === toDateStr(d))
 

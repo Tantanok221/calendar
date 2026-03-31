@@ -5,8 +5,9 @@ import { X, CalendarBlank, Clock, CaretDown, CaretLeft, CaretRight, Repeat } fro
 import { cn } from '../lib/utils'
 import { getClosestTimeSuggestion, getTimeSuggestions } from '../lib/timeSuggestions'
 import { EVENT_COLORS, isSameDay } from '../data/events'
-import type { RendererCalendar } from '../lib/googleCalendarSync'
+import { partitionRendererCalendars, type RendererCalendar } from '../lib/googleCalendarSync'
 import type { CreateCalendarEventDraft, RepeatEndType } from '../lib/googleCalendarCreate'
+import { shouldSubmitOnEnterKeyDown } from '../lib/keyboardSubmit'
 import { addDays, addMonths, getNextMonday, getToday, useToday } from '../lib/today'
 
 // ── TimeInput ───────────────────────────────────────────────────────────────
@@ -384,6 +385,7 @@ export default function NewEventPopover({
   const DOW_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
   const DOW_FULL = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
   const selectedCalendar = calendars.find((item) => item.id === calendarId) ?? calendars[0] ?? null
+  const { myCalendars, otherCalendars } = partitionRendererCalendars(calendars)
 
   useEffect(() => {
     if (!selectedCalendar && calendars[0]) {
@@ -467,6 +469,27 @@ export default function NewEventPopover({
             } else {
               onClose()
             }
+          }}
+          onKeyDown={(event) => {
+            const target = event.target instanceof HTMLElement ? event.target : null
+
+            if (
+              !shouldSubmitOnEnterKeyDown({
+                key: event.key,
+                tagName: target?.tagName,
+                defaultPrevented: event.defaultPrevented,
+                altKey: event.altKey,
+                ctrlKey: event.ctrlKey,
+                metaKey: event.metaKey,
+                shiftKey: event.shiftKey,
+                isContentEditable: target?.isContentEditable
+              })
+            ) {
+              return
+            }
+
+            event.preventDefault()
+            void handleSubmit()
           }}
         >
           {/* ── Header ── */}
@@ -706,36 +729,80 @@ export default function NewEventPopover({
             >
               Calendar
             </p>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {calendars.map((cal) => {
-                const active = calendarId === cal.id
-                return (
-                  <button
-                    key={cal.id}
-                    disabled={isSubmitting}
-                    onClick={() => setCalendarId(cal.id)}
-                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-100"
-                    style={{
-                      background: active ? 'var(--surface-3)' : 'transparent',
-                      border: `1px solid ${active ? 'var(--border-strong)' : 'var(--border)'}`,
-                      color: active ? 'var(--text)' : 'var(--text-muted)'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!active) e.currentTarget.style.borderColor = 'var(--border-strong)'
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!active) e.currentTarget.style.borderColor = 'var(--border)'
-                    }}
-                  >
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ background: EVENT_COLORS[cal.color].dot }}
-                    />
-                    {cal.name}
-                  </button>
-                )
-              })}
-            </div>
+            {myCalendars.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-dim)' }}>
+                  My Calendars
+                </p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {myCalendars.map((cal) => {
+                    const active = calendarId === cal.id
+                    return (
+                      <button
+                        key={cal.id}
+                        disabled={isSubmitting}
+                        onClick={() => setCalendarId(cal.id)}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-100"
+                        style={{
+                          background: active ? 'var(--surface-3)' : 'transparent',
+                          border: `1px solid ${active ? 'var(--border-strong)' : 'var(--border)'}`,
+                          color: active ? 'var(--text)' : 'var(--text-muted)'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!active) e.currentTarget.style.borderColor = 'var(--border-strong)'
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!active) e.currentTarget.style.borderColor = 'var(--border)'
+                        }}
+                      >
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ background: EVENT_COLORS[cal.color].dot }}
+                        />
+                        {cal.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            {otherCalendars.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-dim)' }}>
+                  Other Calendars
+                </p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {otherCalendars.map((cal) => {
+                    const active = calendarId === cal.id
+                    return (
+                      <button
+                        key={cal.id}
+                        disabled={isSubmitting}
+                        onClick={() => setCalendarId(cal.id)}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-100"
+                        style={{
+                          background: active ? 'var(--surface-3)' : 'transparent',
+                          border: `1px solid ${active ? 'var(--border-strong)' : 'var(--border)'}`,
+                          color: active ? 'var(--text)' : 'var(--text-muted)'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!active) e.currentTarget.style.borderColor = 'var(--border-strong)'
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!active) e.currentTarget.style.borderColor = 'var(--border)'
+                        }}
+                      >
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ background: EVENT_COLORS[cal.color].dot }}
+                        />
+                        {cal.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {submitError && (
