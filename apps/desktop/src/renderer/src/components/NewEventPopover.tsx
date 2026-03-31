@@ -359,24 +359,33 @@ interface NewEventPopoverProps {
   onClose: () => void
   calendars: RendererCalendar[]
   onCreateEvent: (draft: CreateCalendarEventDraft) => Promise<void>
+  initialValues?: {
+    selectedDate?: Date
+    allDay?: boolean
+    startTime?: string
+    endTime?: string
+  }
 }
 
 export default function NewEventPopover({
   open,
   onClose,
   calendars,
-  onCreateEvent
+  onCreateEvent,
+  initialValues
 }: NewEventPopoverProps): React.JSX.Element {
   const [title, setTitle] = useState('')
-  const [selectedDate, setSelectedDate] = useState(() => getToday())
-  const [allDay, setAllDay] = useState(false)
-  const [startTime, setStartTime] = useState('10:00 AM')
-  const [endTime, setEndTime] = useState('11:00 AM')
+  const [selectedDate, setSelectedDate] = useState(() => initialValues?.selectedDate ?? getToday())
+  const [allDay, setAllDay] = useState(() => initialValues?.allDay ?? false)
+  const [startTime, setStartTime] = useState(() => initialValues?.startTime ?? '10:00 AM')
+  const [endTime, setEndTime] = useState(() => initialValues?.endTime ?? '11:00 AM')
   const [calendarId, setCalendarId] = useState(calendars[0]?.id ?? '')
   const [repeat, setRepeat] = useState(false)
   const [repeatDays, setRepeatDays] = useState<number[]>([])
   const [repeatEndType, setRepeatEndType] = useState<RepeatEndType>('date')
-  const [repeatUntil, setRepeatUntil] = useState(() => addMonths(getToday(), 1))
+  const [repeatUntil, setRepeatUntil] = useState(() =>
+    addMonths(initialValues?.selectedDate ?? getToday(), 1)
+  )
   const [repeatCount, setRepeatCount] = useState(4)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)

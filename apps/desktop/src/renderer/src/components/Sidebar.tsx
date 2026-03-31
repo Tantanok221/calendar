@@ -3,9 +3,7 @@ import { CaretLeft, CaretRight, Plus } from '@phosphor-icons/react'
 import { EVENT_COLORS, getWeekStart, isSameDay } from '../data/events'
 import type { CalendarEvent } from '../data/events'
 import type { ViewType } from './TopBar'
-import NewEventPopover from './NewEventPopover'
 import { DEFAULT_RENDERER_CALENDARS, type RendererCalendar } from '../lib/googleCalendarSync'
-import type { CreateCalendarEventDraft } from '../lib/googleCalendarCreate'
 
 const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
@@ -167,7 +165,7 @@ interface SidebarProps {
   today: Date
   view: ViewType
   onDateSelect: (d: Date) => void
-  onCreateEvent: (draft: CreateCalendarEventDraft) => Promise<void>
+  onOpenNewEvent: () => void
 }
 
 export default function Sidebar({
@@ -177,16 +175,8 @@ export default function Sidebar({
   today,
   view,
   onDateSelect,
-  onCreateEvent
+  onOpenNewEvent
 }: SidebarProps): React.JSX.Element {
-  const [showNewEvent, setShowNewEvent] = useState(false)
-  const [newEventKey, setNewEventKey] = useState(0)
-
-  const openNewEvent = (): void => {
-    setNewEventKey((value) => value + 1)
-    setShowNewEvent(true)
-  }
-
   return (
     <div
       className="flex flex-col shrink-0 overflow-y-auto"
@@ -202,7 +192,7 @@ export default function Sidebar({
       {/* New Event button */}
       <div className="px-3 pt-1 pb-1">
         <button
-          onClick={openNewEvent}
+          onClick={onOpenNewEvent}
           className="w-full flex items-center justify-center gap-2 px-3 h-8 rounded-lg text-xs font-medium transition-all duration-100"
           style={{
             background: 'var(--accent-bg)',
@@ -216,14 +206,6 @@ export default function Sidebar({
           New Event
         </button>
       </div>
-
-      <NewEventPopover
-        key={newEventKey}
-        open={showNewEvent}
-        onClose={() => setShowNewEvent(false)}
-        calendars={calendars}
-        onCreateEvent={onCreateEvent}
-      />
 
       {/* Mini calendar */}
       <MiniCalendar
