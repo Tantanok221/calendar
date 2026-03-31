@@ -18,7 +18,11 @@ import { EVENT_COLORS, isSameDay } from '../data/events'
 import type { CalendarEvent } from '../data/events'
 import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
 import type { RepeatEndType } from '../lib/googleCalendarCreate'
-import { partitionRendererCalendars, type RendererCalendar } from '../lib/googleCalendarSync'
+import type { RendererCalendar } from '../lib/googleCalendarSync'
+import {
+  getDefaultWritableCalendarId,
+  getWritableCalendars
+} from '../lib/calendarPermissions'
 import { buildUpdatedEventFromDetailDraft } from '../lib/eventDetailDraft'
 import { shouldSubmitOnEnterKeyDown } from '../lib/keyboardSubmit'
 import { addDays, addMonths, getNextMonday, useToday } from '../lib/today'
@@ -367,6 +371,7 @@ export default function EventDetailPopover({
   onDelete,
   onClose
 }: Props): React.JSX.Element {
+  const writableCalendars = getWritableCalendars(calendars)
   const c = EVENT_COLORS[event.color]
   const DOW_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
   const DOW_FULL = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -376,11 +381,11 @@ export default function EventDetailPopover({
   const [allDay, setAllDay] = useState(event.allDay ?? false)
   const [startTime, setStartTime] = useState(event.startTime ? to12h(event.startTime) : '10:00 AM')
   const [endTime, setEndTime] = useState(event.endTime ? to12h(event.endTime) : '11:00 AM')
-  const [calendarId, setCalendarId] = useState(
-    event.source?.calendarId ??
-      calendars.find((calendar) => calendar.name === event.calendar)?.id ??
-      calendars[0]?.id ??
-      ''
+  const [calendarId, setCalendarId] = useState(() =>
+    getDefaultWritableCalendarId(
+      calendars,
+      event.source?.calendarId ?? calendars.find((calendar) => calendar.name === event.calendar)?.id
+    )
   )
   const [repeat, setRepeat] = useState(false)
   const [repeatDays, setRepeatDays] = useState<number[]>([])
@@ -391,15 +396,17 @@ export default function EventDetailPopover({
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const selectedCalendar = calendars.find((calendar) => calendar.id === calendarId) ?? calendars[0]
-  const { myCalendars, otherCalendars } = partitionRendererCalendars(calendars)
+  const selectedCalendar =
+    writableCalendars.find((calendar) => calendar.id === calendarId) ?? writableCalendars[0]
   const isBusy = isSaving || isDeleting
 
   useEffect(() => {
-    if (!selectedCalendar && calendars[0]) {
-      setCalendarId(calendars[0].id)
+    const nextCalendarId = getDefaultWritableCalendarId(calendars, calendarId)
+
+    if (nextCalendarId !== calendarId) {
+      setCalendarId(nextCalendarId)
     }
-  }, [calendars, selectedCalendar])
+  }, [calendarId, calendars])
 
   const toggleRepeatDay = (idx: number): void => {
     setRepeatDays((prev) => prev.includes(idx) ? prev.filter((d) => d !== idx) : [...prev, idx])
@@ -745,13 +752,10 @@ export default function EventDetailPopover({
             <p className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: 'var(--text-dim)' }}>
               Calendar
             </p>
-            {myCalendars.length > 0 && (
+            {writableCalendars.length > 0 ? (
               <div className="flex flex-col gap-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-dim)' }}>
-                  My Calendars
-                </p>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  {myCalendars.map((cal) => {
+                  {writableCalendars.map((cal) => {
                     const active = calendarId === cal.id
                     const calColors = EVENT_COLORS[cal.color]
                     return (
@@ -779,41 +783,10 @@ export default function EventDetailPopover({
                   })}
                 </div>
               </div>
-            )}
-            {otherCalendars.length > 0 && (
-              <div className="flex flex-col gap-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-dim)' }}>
-                  Other Calendars
-                </p>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {otherCalendars.map((cal) => {
-                    const active = calendarId === cal.id
-                    const calColors = EVENT_COLORS[cal.color]
-                    return (
-                      <button
-                        key={cal.id}
-                        disabled={isBusy}
-                        onClick={() => setCalendarId(cal.id)}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-100"
-                        style={{
-                          background: active ? 'var(--surface-3)' : 'transparent',
-                          border: `1px solid ${active ? 'var(--border-strong)' : 'var(--border)'}`,
-                          color: active ? 'var(--text)' : 'var(--text-muted)'
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!active) e.currentTarget.style.borderColor = 'var(--border-strong)'
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!active) e.currentTarget.style.borderColor = 'var(--border)'
-                        }}
-                      >
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: calColors.dot }} />
-                        {cal.name}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
+            ) : (
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                No editable calendars available.
+              </p>
             )}
           </div>
 
