@@ -31,6 +31,8 @@ import {
 } from '../lib/calendarDrag'
 import { buildCalendarHours, formatCalendarHour } from '../lib/calendarHours'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
+import { buildTimedEventLayout } from '../lib/timedEventLayout'
+import type { TimedEventLayout } from '../lib/timedEventLayout'
 import EventDetailPopover from './EventDetailPopover'
 
 const HOURS = buildCalendarHours(START_HOUR, END_HOUR)
@@ -75,6 +77,7 @@ function dateFromDateStr(dateStr: string): Date {
 
 function TimedEventCard({
   event,
+  layout,
   selected,
   dragging,
   resizing,
@@ -83,6 +86,7 @@ function TimedEventCard({
   onResizeStart
 }: {
   event: CalendarEvent
+  layout: TimedEventLayout
   selected: boolean
   dragging: boolean
   resizing: boolean
@@ -94,6 +98,8 @@ function TimedEventCard({
   const top = topPx(event.startTime!)
   const height = heightPx(event.startTime!, event.endTime!)
   const short = height < 36
+  const left = `calc(${(layout.columnIndex / layout.columnCount) * 100}% + 4px)`
+  const right = `calc(${((layout.columnCount - layout.columnIndex - 1) / layout.columnCount) * 100}% + 4px)`
 
   return (
     <motion.div
@@ -112,6 +118,8 @@ function TimedEventCard({
         background: selected ? color.bg.replace('0.13', '0.22') : color.bg,
         borderLeftColor: color.dot,
         color: color.text,
+        left,
+        right,
         outline: selected ? `1px solid ${color.dot}` : 'none',
         outlineOffset: -1,
         zIndex: dragging || resizing ? 20 : selected ? 12 : 2,
@@ -150,12 +158,14 @@ function TimedEventCard({
 
 function DraggableEventBlock({
   event,
+  layout,
   selected,
   resizing,
   onClick,
   onResizeStart
 }: {
   event: CalendarEvent
+  layout: TimedEventLayout
   selected: boolean
   resizing: boolean
   onClick: (e: React.MouseEvent, ev: CalendarEvent) => void
@@ -169,6 +179,7 @@ function DraggableEventBlock({
   return (
     <TimedEventCard
       event={event}
+      layout={layout}
       selected={selected}
       dragging={isDragging}
       resizing={resizing}
@@ -695,6 +706,10 @@ export default function WeekView({
 
             {days.map((day) => {
               const isToday = isSameDay(day, today)
+              const dayTimedEvents = timedEvents(day).map((event) =>
+                timedResize?.eventId === event.id ? timedResize.previewEvent : event
+              )
+              const dayTimedEventLayout = buildTimedEventLayout(dayTimedEvents)
               return (
                 <div
                   key={toDateStr(day)}
@@ -752,10 +767,13 @@ export default function WeekView({
                   )}
 
                   <AnimatePresence>
-                    {timedEvents(day).map((event) => (
+                    {dayTimedEvents.map((event) => (
                       <DraggableEventBlock
                         key={event.id}
-                        event={timedResize?.eventId === event.id ? timedResize.previewEvent : event}
+                        event={event}
+                        layout={
+                          dayTimedEventLayout[event.id] ?? { columnIndex: 0, columnCount: 1 }
+                        }
                         selected={selectedEventId === event.id}
                         resizing={timedResize?.eventId === event.id}
                         onClick={handleEventClick}

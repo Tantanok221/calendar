@@ -30,6 +30,8 @@ import {
 } from '../lib/calendarDrag'
 import { buildCalendarHours, formatCalendarHour } from '../lib/calendarHours'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
+import { buildTimedEventLayout } from '../lib/timedEventLayout'
+import type { TimedEventLayout } from '../lib/timedEventLayout'
 import EventDetailPopover from './EventDetailPopover'
 
 const HOURS = buildCalendarHours(START_HOUR, END_HOUR)
@@ -73,6 +75,7 @@ function dateFromDateStr(dateStr: string): Date {
 
 function TimedEventCard({
   event,
+  layout,
   selected,
   dragging,
   resizing,
@@ -81,6 +84,7 @@ function TimedEventCard({
   onResizeStart
 }: {
   event: CalendarEvent
+  layout: TimedEventLayout
   selected: boolean
   dragging: boolean
   resizing: boolean
@@ -92,6 +96,8 @@ function TimedEventCard({
   const top = topPx(event.startTime!)
   const height = heightPx(event.startTime!, event.endTime!)
   const short = height < 44
+  const left = `calc(${(layout.columnIndex / layout.columnCount) * 100}% + 4px)`
+  const right = `calc(${((layout.columnCount - layout.columnIndex - 1) / layout.columnCount) * 100}% + 4px)`
 
   return (
     <motion.div
@@ -110,8 +116,8 @@ function TimedEventCard({
         background: selected ? color.bg.replace('0.13', '0.22') : color.bg,
         borderLeftColor: color.dot,
         color: color.text,
-        left: 8,
-        right: 8,
+        left,
+        right,
         outline: selected ? `1px solid ${color.dot}` : 'none',
         outlineOffset: -1,
         zIndex: dragging || resizing ? 20 : selected ? 12 : 2,
@@ -137,14 +143,14 @@ function TimedEventCard({
         onClick={(clickEvent) => clickEvent.stopPropagation()}
       />
       <div className="relative z-0 pointer-events-none">
-        <p className="text-xs font-semibold leading-snug">{event.title}</p>
+        <p className="text-xs font-semibold leading-snug truncate">{event.title}</p>
         {!short && (
-          <p className="text-[11px] mt-0.5 opacity-70">
+          <p className="text-[11px] mt-0.5 opacity-70 truncate">
             {event.startTime} – {event.endTime}
           </p>
         )}
         {!short && event.calendar && (
-          <p className="text-[10px] mt-0.5 opacity-50">{event.calendar}</p>
+          <p className="text-[10px] mt-0.5 opacity-50 truncate">{event.calendar}</p>
         )}
       </div>
     </motion.div>
@@ -153,12 +159,14 @@ function TimedEventCard({
 
 function DraggableEventBlock({
   event,
+  layout,
   selected,
   resizing,
   onClick,
   onResizeStart
 }: {
   event: CalendarEvent
+  layout: TimedEventLayout
   selected: boolean
   resizing: boolean
   onClick: (e: React.MouseEvent, ev: CalendarEvent) => void
@@ -172,6 +180,7 @@ function DraggableEventBlock({
   return (
     <TimedEventCard
       event={event}
+      layout={layout}
       selected={selected}
       dragging={isDragging}
       resizing={resizing}
@@ -557,6 +566,10 @@ export default function DayView({
   const timedEvents = events
     .filter((event) => event.date === dayStr && !event.allDay && event.startTime && event.endTime)
     .sort((a, b) => timeToMinutes(a.startTime!) - timeToMinutes(b.startTime!))
+  const displayedTimedEvents = timedEvents.map((event) =>
+    timedResize?.eventId === event.id ? timedResize.previewEvent : event
+  )
+  const timedEventLayout = buildTimedEventLayout(displayedTimedEvents)
   const allDayEvents = events.filter((event) => event.date === dayStr && event.allDay)
   const draggedTimedEvent = draggedEventId
     ? events.find(
@@ -727,10 +740,11 @@ export default function DayView({
               )}
 
               <AnimatePresence>
-                {timedEvents.map((event) => (
+                {displayedTimedEvents.map((event) => (
                   <DraggableEventBlock
                     key={event.id}
-                    event={timedResize?.eventId === event.id ? timedResize.previewEvent : event}
+                    event={event}
+                    layout={timedEventLayout[event.id] ?? { columnIndex: 0, columnCount: 1 }}
                     selected={selectedEventId === event.id}
                     resizing={timedResize?.eventId === event.id}
                     onClick={handleEventClick}
