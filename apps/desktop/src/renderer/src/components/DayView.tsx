@@ -18,12 +18,15 @@ import {
   type TimedSelectionRange,
   buildDropSlotId,
   getTimedDragPreviewRange,
+  getTimedResizeBoundaryMinutes,
   getTimedSelectionRange,
   getTimedSlotStartMinutes,
   parseDropSlotId,
+  resizeTimedEvent,
   rescheduleAllDayEvent,
   rescheduleTimedEvent,
-  SNAP_MINUTES
+  SNAP_MINUTES,
+  type TimedEventResizeEdge
 } from '../lib/calendarDrag'
 import { buildCalendarHours, formatCalendarHour } from '../lib/calendarHours'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
@@ -72,14 +75,18 @@ function TimedEventCard({
   event,
   selected,
   dragging,
+  resizing,
   onClick,
-  elementRef
+  dragHandleRef,
+  onResizeStart
 }: {
   event: CalendarEvent
   selected: boolean
   dragging: boolean
+  resizing: boolean
   onClick: (e: React.MouseEvent, ev: CalendarEvent) => void
-  elementRef?: (element: Element | null) => void
+  dragHandleRef?: (element: Element | null) => void
+  onResizeStart: (event: React.PointerEvent<HTMLDivElement>, edge: TimedEventResizeEdge) => void
 }): React.JSX.Element {
   const color = EVENT_COLORS[event.color]
   const top = topPx(event.startTime!)
@@ -88,7 +95,6 @@ function TimedEventCard({
 
   return (
     <motion.div
-      ref={elementRef}
       className="event-block"
       initial={{ opacity: 0, y: 5 }}
       animate={{ opacity: dragging ? 0.28 : 1, y: 0 }}
@@ -108,21 +114,39 @@ function TimedEventCard({
         right: 8,
         outline: selected ? `1px solid ${color.dot}` : 'none',
         outlineOffset: -1,
-        cursor: dragging ? 'grabbing' : 'grab',
-        zIndex: dragging ? 20 : selected ? 12 : 2,
-        touchAction: 'none',
-        boxShadow: dragging ? '0 10px 24px rgba(0,0,0,0.22)' : 'none'
+        zIndex: dragging || resizing ? 20 : selected ? 12 : 2,
+        boxShadow: dragging || resizing ? '0 10px 24px rgba(0,0,0,0.22)' : 'none'
       }}
     >
-      <p className="text-xs font-semibold leading-snug">{event.title}</p>
-      {!short && (
-        <p className="text-[11px] mt-0.5 opacity-70">
-          {event.startTime} – {event.endTime}
-        </p>
-      )}
-      {!short && event.calendar && (
-        <p className="text-[10px] mt-0.5 opacity-50">{event.calendar}</p>
-      )}
+      <div
+        ref={dragHandleRef}
+        aria-hidden="true"
+        className="event-drag-surface"
+        style={{ cursor: dragging ? 'grabbing' : 'grab' }}
+      />
+      <div
+        aria-hidden="true"
+        className="event-resize-handle event-resize-handle-top"
+        onPointerDown={(pointerEvent) => onResizeStart(pointerEvent, 'start')}
+        onClick={(clickEvent) => clickEvent.stopPropagation()}
+      />
+      <div
+        aria-hidden="true"
+        className="event-resize-handle event-resize-handle-bottom"
+        onPointerDown={(pointerEvent) => onResizeStart(pointerEvent, 'end')}
+        onClick={(clickEvent) => clickEvent.stopPropagation()}
+      />
+      <div className="relative z-0 pointer-events-none">
+        <p className="text-xs font-semibold leading-snug">{event.title}</p>
+        {!short && (
+          <p className="text-[11px] mt-0.5 opacity-70">
+            {event.startTime} – {event.endTime}
+          </p>
+        )}
+        {!short && event.calendar && (
+          <p className="text-[10px] mt-0.5 opacity-50">{event.calendar}</p>
+        )}
+      </div>
     </motion.div>
   )
 }
@@ -130,11 +154,15 @@ function TimedEventCard({
 function DraggableEventBlock({
   event,
   selected,
-  onClick
+  resizing,
+  onClick,
+  onResizeStart
 }: {
   event: CalendarEvent
   selected: boolean
+  resizing: boolean
   onClick: (e: React.MouseEvent, ev: CalendarEvent) => void
+  onResizeStart: (event: React.PointerEvent<HTMLDivElement>, edge: TimedEventResizeEdge) => void
 }): React.JSX.Element {
   const { ref, isDragging } = useDraggable({
     id: `event:${event.id}`,
@@ -146,8 +174,10 @@ function DraggableEventBlock({
       event={event}
       selected={selected}
       dragging={isDragging}
+      resizing={resizing}
       onClick={onClick}
-      elementRef={ref}
+      dragHandleRef={ref}
+      onResizeStart={onResizeStart}
     />
   )
 }
@@ -309,6 +339,13 @@ export default function DayView({
     pointerId: number
     range: TimedSelectionRange
   } | null>(null)
+  const [timedResize, setTimedResize] = useState<{
+    edge: TimedEventResizeEdge
+    eventId: string
+    originalEvent: CalendarEvent
+    pointerId: number
+    previewEvent: CalendarEvent
+  } | null>(null)
   const isToday = isSameDay(currentDate, today)
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? null
 
@@ -393,6 +430,35 @@ export default function DayView({
 
   const handleTimedGridPointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
     const rect = event.currentTarget.getBoundingClientRect()
+
+    if (timedResize && timedResize.pointerId === event.pointerId) {
+      const boundaryMinutes = getTimedResizeBoundaryMinutes(event.clientY - rect.top)
+
+      setTimedResize((currentResize) => {
+        if (!currentResize || currentResize.pointerId !== event.pointerId) {
+          return currentResize
+        }
+
+        const previewEvent = resizeTimedEvent(currentResize.originalEvent, {
+          edge: currentResize.edge,
+          boundaryMinutes
+        })
+
+        if (
+          previewEvent.startTime === currentResize.previewEvent.startTime &&
+          previewEvent.endTime === currentResize.previewEvent.endTime
+        ) {
+          return currentResize
+        }
+
+        return {
+          ...currentResize,
+          previewEvent
+        }
+      })
+      return
+    }
+
     const currentMinutes = getTimedSlotStartMinutes(event.clientY - rect.top)
 
     setTimedSelection((currentSelection) => {
@@ -424,6 +490,22 @@ export default function DayView({
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
 
+    if (timedResize && timedResize.pointerId === event.pointerId) {
+      if (shouldCreate) {
+        suppressClickUntilRef.current = Date.now() + 250
+
+        if (
+          timedResize.previewEvent.startTime !== timedResize.originalEvent.startTime ||
+          timedResize.previewEvent.endTime !== timedResize.originalEvent.endTime
+        ) {
+          onEventChange(timedResize.previewEvent)
+        }
+      }
+
+      setTimedResize(null)
+      return
+    }
+
     setTimedSelection((currentSelection) => {
       if (!currentSelection || currentSelection.pointerId !== event.pointerId) {
         return currentSelection
@@ -437,6 +519,28 @@ export default function DayView({
       return null
     })
   }
+
+  const handleTimedEventResizeStart =
+    (eventToResize: CalendarEvent) =>
+    (pointerEvent: React.PointerEvent<HTMLDivElement>, edge: TimedEventResizeEdge): void => {
+      if (pointerEvent.button !== 0 || draggedEventId) return
+
+      const dayColumn = pointerEvent.currentTarget.closest('.day-col-inner')
+      if (!(dayColumn instanceof HTMLDivElement)) return
+
+      clearSelection()
+      pointerEvent.preventDefault()
+      pointerEvent.stopPropagation()
+      pointerEvent.nativeEvent.stopImmediatePropagation()
+      dayColumn.setPointerCapture(pointerEvent.pointerId)
+      setTimedResize({
+        edge,
+        eventId: eventToResize.id,
+        originalEvent: eventToResize,
+        pointerId: pointerEvent.pointerId,
+        previewEvent: eventToResize
+      })
+    }
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -626,9 +730,11 @@ export default function DayView({
                 {timedEvents.map((event) => (
                   <DraggableEventBlock
                     key={event.id}
-                    event={event}
+                    event={timedResize?.eventId === event.id ? timedResize.previewEvent : event}
                     selected={selectedEventId === event.id}
+                    resizing={timedResize?.eventId === event.id}
                     onClick={handleEventClick}
+                    onResizeStart={handleTimedEventResizeStart(event)}
                   />
                 ))}
               </AnimatePresence>

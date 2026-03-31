@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { HOUR_HEIGHT } from '../data/events'
 import type { CalendarEvent } from '../data/events'
 import {
   buildAllDayDropSlotId,
@@ -6,10 +7,12 @@ import {
   buildDropSlotId,
   clampEventStartMinutes,
   getTimedDragPreviewRange,
+  getTimedResizeBoundaryMinutes,
   getTimedSelectionRange,
   getDateFromColumnIndex,
   parseDropSlotId,
   rescheduleAllDayEvent,
+  resizeTimedEvent,
   rescheduleTimedEvent,
   SNAP_MINUTES
 } from './calendarDrag'
@@ -141,6 +144,89 @@ describe('calendar drag helpers', () => {
     expect(getTimedDragPreviewRange(20 * 60 + 30, 90, 7 * 60, 21 * 60)).toEqual({
       startMinutes: 19 * 60 + 30,
       endMinutes: 21 * 60
+    })
+  })
+
+  test('snaps a resize pointer position to the nearest visible boundary', () => {
+    expect(getTimedResizeBoundaryMinutes(HOUR_HEIGHT * 2.2, HOUR_HEIGHT, 7 * 60, 21 * 60)).toBe(
+      9 * 60
+    )
+    expect(getTimedResizeBoundaryMinutes(HOUR_HEIGHT * 2.6, HOUR_HEIGHT, 7 * 60, 21 * 60)).toBe(
+      9 * 60 + 30
+    )
+  })
+
+  test('extends a timed event from its end edge', () => {
+    expect(
+      resizeTimedEvent(BASE_EVENT, {
+        edge: 'end',
+        boundaryMinutes: 17 * 60
+      })
+    ).toMatchObject({
+      startTime: '14:00',
+      endTime: '17:00'
+    })
+  })
+
+  test('moves a timed event start from its top edge', () => {
+    expect(
+      resizeTimedEvent(BASE_EVENT, {
+        edge: 'start',
+        boundaryMinutes: 13 * 60
+      })
+    ).toMatchObject({
+      startTime: '13:00',
+      endTime: '15:30'
+    })
+  })
+
+  test('keeps at least one snap interval when shrinking from the start edge', () => {
+    expect(
+      resizeTimedEvent(BASE_EVENT, {
+        edge: 'start',
+        boundaryMinutes: 15 * 60 + 30
+      })
+    ).toMatchObject({
+      startTime: '15:00',
+      endTime: '15:30'
+    })
+  })
+
+  test('keeps at least one snap interval when shrinking from the end edge', () => {
+    expect(
+      resizeTimedEvent(BASE_EVENT, {
+        edge: 'end',
+        boundaryMinutes: 13 * 60
+      })
+    ).toMatchObject({
+      startTime: '14:00',
+      endTime: '14:30'
+    })
+  })
+
+  test('clamps resized times to the visible hours', () => {
+    expect(
+      resizeTimedEvent(BASE_EVENT, {
+        edge: 'start',
+        boundaryMinutes: 6 * 60,
+        dayStartMinutes: 7 * 60,
+        dayEndMinutes: 21 * 60
+      })
+    ).toMatchObject({
+      startTime: '07:00',
+      endTime: '15:30'
+    })
+
+    expect(
+      resizeTimedEvent(BASE_EVENT, {
+        edge: 'end',
+        boundaryMinutes: 23 * 60,
+        dayStartMinutes: 7 * 60,
+        dayEndMinutes: 21 * 60
+      })
+    ).toMatchObject({
+      startTime: '14:00',
+      endTime: '21:00'
     })
   })
 })
