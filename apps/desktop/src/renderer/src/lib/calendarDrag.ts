@@ -1,9 +1,20 @@
-import { END_HOUR, START_HOUR, timeToMinutes, toDateStr } from '../data/events'
+import { END_HOUR, HOUR_HEIGHT, START_HOUR, timeToMinutes, toDateStr } from '../data/events'
 import type { CalendarEvent } from '../data/events'
 
 export const SNAP_MINUTES = 30
 export type CalendarDropView = 'day' | 'week'
 export type CalendarDropLane = 'timed' | 'all-day'
+export interface TimedSelectionRange {
+  startMinutes: number
+  endMinutes: number
+}
+
+export interface NewEventDraftDefaults {
+  selectedDate: Date
+  allDay: boolean
+  startTime: string
+  endTime: string
+}
 
 function roundToSnap(minutes: number, snapMinutes: number = SNAP_MINUTES): number {
   return Math.round(minutes / snapMinutes) * snapMinutes
@@ -15,6 +26,16 @@ function minutesToTime(totalMinutes: number): string {
   const minutes = normalized % 60
 
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+}
+
+function minutesToDraftTime(totalMinutes: number): string {
+  const normalized = Math.max(0, totalMinutes)
+  const hours24 = Math.floor(normalized / 60)
+  const minutes = normalized % 60
+  const meridiem = hours24 >= 12 ? 'PM' : 'AM'
+  const hours12 = hours24 % 12 || 12
+
+  return `${hours12}:${String(minutes).padStart(2, '0')} ${meridiem}`
 }
 
 export function buildDropSlotId(view: CalendarDropView, date: Date, startMinutes: number): string {
@@ -67,6 +88,81 @@ export function clampEventStartMinutes(
   const latestStart = Math.max(dayStartMinutes, dayEndMinutes - durationMinutes)
 
   return Math.min(Math.max(startMinutes, dayStartMinutes), latestStart)
+}
+
+export function getTimedSlotStartMinutes(
+  offsetPx: number,
+  hourHeight: number = HOUR_HEIGHT,
+  dayStartMinutes: number = START_HOUR * 60,
+  dayEndMinutes: number = END_HOUR * 60,
+  snapMinutes: number = SNAP_MINUTES
+): number {
+  const rawMinutes = dayStartMinutes + Math.floor((Math.max(0, offsetPx) / hourHeight) * 60)
+  const snappedMinutes = Math.floor(rawMinutes / snapMinutes) * snapMinutes
+
+  return clampEventStartMinutes(snappedMinutes, snapMinutes, dayStartMinutes, dayEndMinutes)
+}
+
+export function getTimedSelectionRange(
+  anchorStartMinutes: number,
+  currentStartMinutes: number,
+  dayStartMinutes: number = START_HOUR * 60,
+  dayEndMinutes: number = END_HOUR * 60,
+  snapMinutes: number = SNAP_MINUTES
+): TimedSelectionRange {
+  const anchor = clampEventStartMinutes(
+    roundToSnap(anchorStartMinutes),
+    snapMinutes,
+    dayStartMinutes,
+    dayEndMinutes
+  )
+  const current = clampEventStartMinutes(
+    roundToSnap(currentStartMinutes),
+    snapMinutes,
+    dayStartMinutes,
+    dayEndMinutes
+  )
+
+  return {
+    startMinutes: Math.max(dayStartMinutes, Math.min(anchor, current)),
+    endMinutes: Math.min(dayEndMinutes, Math.max(anchor, current) + snapMinutes)
+  }
+}
+
+export function getTimedDragPreviewRange(
+  startMinutes: number,
+  durationMinutes: number,
+  dayStartMinutes: number = START_HOUR * 60,
+  dayEndMinutes: number = END_HOUR * 60
+): TimedSelectionRange {
+  const clampedStartMinutes = clampEventStartMinutes(
+    roundToSnap(startMinutes),
+    durationMinutes,
+    dayStartMinutes,
+    dayEndMinutes
+  )
+
+  return {
+    startMinutes: clampedStartMinutes,
+    endMinutes: clampedStartMinutes + durationMinutes
+  }
+}
+
+export function buildTimedDraftFromSelection(
+  date: Date,
+  range: TimedSelectionRange,
+  dayEndMinutes: number = END_HOUR * 60,
+  snapMinutes: number = SNAP_MINUTES
+): NewEventDraftDefaults {
+  const startMinutes = range.startMinutes
+  const endMinutes = Math.min(dayEndMinutes, Math.max(startMinutes + snapMinutes, range.endMinutes))
+
+  return {
+    selectedDate: new Date(date),
+    allDay: false,
+    startTime: minutesToDraftTime(startMinutes),
+    endTime: minutesToDraftTime(endMinutes)
+  }
 }
 
 export function getDateFromColumnIndex(weekStart: Date, columnIndex: number): Date {

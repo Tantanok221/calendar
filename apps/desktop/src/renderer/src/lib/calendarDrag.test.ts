@@ -2,8 +2,11 @@ import { describe, expect, test } from 'bun:test'
 import type { CalendarEvent } from '../data/events'
 import {
   buildAllDayDropSlotId,
+  buildTimedDraftFromSelection,
   buildDropSlotId,
   clampEventStartMinutes,
+  getTimedDragPreviewRange,
+  getTimedSelectionRange,
   getDateFromColumnIndex,
   parseDropSlotId,
   rescheduleAllDayEvent,
@@ -89,6 +92,55 @@ describe('calendar drag helpers', () => {
       allDay: true,
       startTime: undefined,
       endTime: undefined
+    })
+  })
+
+  test('expands an empty-slot drag downward from the pressed slot', () => {
+    expect(getTimedSelectionRange(9 * 60, 10 * 60)).toEqual({
+      startMinutes: 9 * 60,
+      endMinutes: 10 * 60 + SNAP_MINUTES
+    })
+  })
+
+  test('expands an empty-slot drag upward while keeping the pressed slot included', () => {
+    expect(getTimedSelectionRange(10 * 60, 9 * 60)).toEqual({
+      startMinutes: 9 * 60,
+      endMinutes: 10 * 60 + SNAP_MINUTES
+    })
+  })
+
+  test('uses a single snapped slot for a plain empty-slot click', () => {
+    expect(getTimedSelectionRange(13 * 60 + 30, 13 * 60 + 30)).toEqual({
+      startMinutes: 13 * 60 + 30,
+      endMinutes: 14 * 60
+    })
+  })
+
+  test('builds new-event modal defaults from a timed selection', () => {
+    expect(
+      buildTimedDraftFromSelection(new Date(2026, 2, 31), {
+        startMinutes: 13 * 60 + 30,
+        endMinutes: 15 * 60
+      })
+    ).toEqual({
+      selectedDate: new Date(2026, 2, 31),
+      allDay: false,
+      startTime: '1:30 PM',
+      endTime: '3:00 PM'
+    })
+  })
+
+  test('builds a drag preview that preserves the dragged event duration', () => {
+    expect(getTimedDragPreviewRange(9 * 60 + 30, 60)).toEqual({
+      startMinutes: 9 * 60 + 30,
+      endMinutes: 10 * 60 + 30
+    })
+  })
+
+  test('clamps the drag preview so long events stay within visible hours', () => {
+    expect(getTimedDragPreviewRange(20 * 60 + 30, 90, 7 * 60, 21 * 60)).toEqual({
+      startMinutes: 19 * 60 + 30,
+      endMinutes: 21 * 60
     })
   })
 })
