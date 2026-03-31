@@ -66,10 +66,12 @@ describe('normalizeGoogleCalendarEvent', () => {
     expect(
       normalizeGoogleCalendarEvent('primary', {
         id: 'abc123',
+        recurringEventId: 'series-1',
         status: 'confirmed',
         summary: 'Team Standup',
         location: 'Room 5',
         htmlLink: 'https://calendar.google.com/calendar/event?eid=abc123',
+        recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=4'],
         start: {
           dateTime: '2026-03-30T09:00:00Z',
           timeZone: 'UTC'
@@ -82,10 +84,12 @@ describe('normalizeGoogleCalendarEvent', () => {
     ).toEqual({
       id: 'abc123',
       calendarId: 'primary',
+      recurringEventId: 'series-1',
       status: 'confirmed',
       title: 'Team Standup',
       location: 'Room 5',
       htmlLink: 'https://calendar.google.com/calendar/event?eid=abc123',
+      recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=4'],
       allDay: false,
       start: {
         dateTime: '2026-03-30T09:00:00Z',
@@ -156,6 +160,7 @@ describe('updateGoogleCalendarEvent', () => {
         date: null,
         timeZone: 'Asia/Kuala_Lumpur'
       },
+      recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=4'],
       fetchImpl: async (input, init) => {
         requestedUrl = String(input)
         requestedBody = String(init?.body ?? '')
@@ -163,9 +168,11 @@ describe('updateGoogleCalendarEvent', () => {
         return new Response(
           JSON.stringify({
             id: 'evt-123',
+            recurringEventId: 'series-123',
             status: 'confirmed',
             summary: 'Standup',
             location: 'Boardroom',
+            recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=4'],
             start: {
               dateTime: '2026-03-30T02:00:00.000Z',
               timeZone: 'Asia/Kuala_Lumpur'
@@ -198,15 +205,18 @@ describe('updateGoogleCalendarEvent', () => {
       end: {
         dateTime: '2026-03-30T02:30:00.000Z',
         timeZone: 'Asia/Kuala_Lumpur'
-      }
+      },
+      recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=4']
     })
     expect(updatedEvent).toEqual({
       id: 'evt-123',
       calendarId: 'primary',
+      recurringEventId: 'series-123',
       status: 'confirmed',
       title: 'Standup',
       location: 'Boardroom',
       htmlLink: null,
+      recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=4'],
       allDay: false,
       start: {
         dateTime: '2026-03-30T02:00:00.000Z',

@@ -52,10 +52,12 @@ export interface GoogleCalendarEventDateTime {
 export interface GoogleCalendarEvent {
   id: string
   calendarId: string
+  recurringEventId?: string
   status: string
   title: string
   description?: string | null
   location?: string | null
+  recurrence?: string[]
   htmlLink: string | null
   allDay: boolean
   start: GoogleCalendarEventDateTime
@@ -67,6 +69,7 @@ export interface UpdateGoogleCalendarEventInput {
   eventId: string
   summary?: string
   location?: string | null
+  recurrence?: string[]
   start: GoogleCalendarEventDateTime
   end: GoogleCalendarEventDateTime
 }
@@ -117,10 +120,12 @@ export interface RawGoogleCalendarListEntry {
 
 export interface RawGoogleCalendarEvent {
   id: string
+  recurringEventId?: string
   status?: string
   summary?: string
   description?: string
   location?: string
+  recurrence?: string[]
   htmlLink?: string
   start?: {
     dateTime?: string

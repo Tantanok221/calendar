@@ -31,6 +31,7 @@ import {
 } from '../lib/calendarDrag'
 import { buildCalendarHours, formatCalendarHour } from '../lib/calendarHours'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
+import type { GoogleCalendarDeleteScope } from '../lib/googleCalendarWriteback'
 import { buildTimedEventLayout } from '../lib/timedEventLayout'
 import type { TimedEventLayout } from '../lib/timedEventLayout'
 import {
@@ -355,7 +356,7 @@ interface WeekViewProps {
   today: Date
   onDateSelect: (d: Date) => void
   onEventChange: (event: CalendarEvent) => Promise<void> | void
-  onEventDelete: (event: CalendarEvent) => Promise<void> | void
+  onEventDelete: (event: CalendarEvent, scope?: GoogleCalendarDeleteScope) => Promise<void> | void
   onTimedSelectionCreate: (date: Date, range: TimedSelectionRange) => void
 }
 

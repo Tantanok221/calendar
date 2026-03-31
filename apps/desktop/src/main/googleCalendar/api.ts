@@ -23,7 +23,9 @@ interface CreateGoogleEventInput extends GoogleApiRequestInput, CreateGoogleCale
 interface MoveGoogleEventInput extends GoogleApiRequestInput, MoveGoogleCalendarEventInput {}
 interface DeleteGoogleEventInput extends GoogleApiRequestInput, DeleteGoogleCalendarEventInput {}
 
-export async function fetchGoogleCalendars(input: GoogleApiRequestInput): Promise<GoogleCalendarSummary[]> {
+export async function fetchGoogleCalendars(
+  input: GoogleApiRequestInput
+): Promise<GoogleCalendarSummary[]> {
   const url = `${input.apiBaseUrl}/users/me/calendarList`
   const response = await (input.fetchImpl ?? fetch)(url, {
     headers: {
@@ -34,7 +36,11 @@ export async function fetchGoogleCalendars(input: GoogleApiRequestInput): Promis
   const data = await parseGoogleJson<{ items?: RawGoogleCalendarListEntry[] }>(response)
 
   try {
-    await writeFile('/tmp/google-calendar-list-debug.json', JSON.stringify(data.items ?? [], null, 2), 'utf8')
+    await writeFile(
+      '/tmp/google-calendar-list-debug.json',
+      JSON.stringify(data.items ?? [], null, 2),
+      'utf8'
+    )
   } catch {
     // Best-effort debug dump for live investigation.
   }
@@ -88,7 +94,9 @@ export async function fetchGoogleCalendarEvents(
 
   const data = await parseGoogleJson<{ items?: RawGoogleCalendarEvent[] }>(response)
 
-  return (data.items ?? []).map((event) => normalizeGoogleCalendarEvent(input.calendarId ?? 'primary', event))
+  return (data.items ?? []).map((event) =>
+    normalizeGoogleCalendarEvent(input.calendarId ?? 'primary', event)
+  )
 }
 
 export async function updateGoogleCalendarEvent(
@@ -107,6 +115,7 @@ export async function updateGoogleCalendarEvent(
       body: JSON.stringify({
         summary: input.summary,
         location: input.location,
+        recurrence: input.recurrence,
         start: toGoogleDateTimePayload(input.start),
         end: toGoogleDateTimePayload(input.end)
       })
@@ -153,7 +162,9 @@ export async function deleteGoogleCalendarEvent(input: DeleteGoogleEventInput): 
   )
 
   if (!response.ok) {
-    throw new Error(`Google Calendar API request failed with status ${response.status}: ${await response.text()}`)
+    throw new Error(
+      `Google Calendar API request failed with status ${response.status}: ${await response.text()}`
+    )
   }
 }
 
@@ -191,8 +202,10 @@ export function normalizeGoogleCalendarEvent(
   const normalizedEvent: GoogleCalendarEvent = {
     id: event.id,
     calendarId,
+    ...(event.recurringEventId ? { recurringEventId: event.recurringEventId } : {}),
     status: event.status ?? 'confirmed',
     title: event.summary ?? '',
+    ...(event.recurrence ? { recurrence: event.recurrence } : {}),
     htmlLink: event.htmlLink ?? null,
     allDay: Boolean(event.start?.date && !event.start?.dateTime),
     start: {
@@ -220,7 +233,9 @@ export function normalizeGoogleCalendarEvent(
 
 async function parseGoogleJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    throw new Error(`Google Calendar API request failed with status ${response.status}: ${await response.text()}`)
+    throw new Error(
+      `Google Calendar API request failed with status ${response.status}: ${await response.text()}`
+    )
   }
 
   return (await response.json()) as T

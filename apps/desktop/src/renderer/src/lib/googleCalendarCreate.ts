@@ -1,10 +1,14 @@
 import type { CreateGoogleCalendarEventInput } from '../../../main/googleCalendar/types'
 import type { CalendarEvent, EventColor } from '../data/events'
 import { getClosestTimeSuggestion } from './timeSuggestions'
+import {
+  buildGoogleCalendarRecurrenceRule,
+  type GoogleCalendarRepeatDraft
+} from './googleCalendarRecurrence'
 
-export type RepeatEndType = 'date' | 'count'
+export type { RepeatEndType } from './googleCalendarRecurrence'
 
-export interface CreateCalendarEventDraft {
+export interface CreateCalendarEventDraft extends GoogleCalendarRepeatDraft {
   title: string
   location: string
   selectedDate: Date
@@ -14,14 +18,7 @@ export interface CreateCalendarEventDraft {
   calendarId: string
   calendarName: string
   color: EventColor
-  repeat: boolean
-  repeatDays: number[]
-  repeatEndType: RepeatEndType
-  repeatUntil: Date
-  repeatCount: number
 }
-
-const RRULE_BYDAY = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
 
 export function buildGoogleCalendarCreateInput(
   draft: CreateCalendarEventDraft,
@@ -49,7 +46,7 @@ export function buildGoogleCalendarCreateInput(
         date: formatDate(addDays(draft.selectedDate, 1)),
         timeZone: null
       },
-      recurrence: buildRecurrenceRule(draft)
+      recurrence: buildGoogleCalendarRecurrenceRule(draft)
     }
   }
 
@@ -74,7 +71,7 @@ export function buildGoogleCalendarCreateInput(
       date: null,
       timeZone
     },
-    recurrence: buildRecurrenceRule(draft)
+    recurrence: buildGoogleCalendarRecurrenceRule(draft)
   }
 }
 
@@ -109,23 +106,6 @@ export function buildLocalEventsFromDraft(draft: CreateCalendarEventDraft): Cale
   }))
 }
 
-function buildRecurrenceRule(draft: CreateCalendarEventDraft): string[] | undefined {
-  if (!draft.repeat) {
-    return undefined
-  }
-
-  const byDay = getRepeatDayCodes(draft).join(',')
-  const parts = [`RRULE:FREQ=WEEKLY`, `BYDAY=${byDay}`]
-
-  if (draft.repeatEndType === 'count') {
-    parts.push(`COUNT=${Math.max(1, draft.repeatCount)}`)
-  } else {
-    parts.push(`UNTIL=${formatUntilDate(draft.repeatUntil)}`)
-  }
-
-  return [parts.join(';')]
-}
-
 function getOccurrenceDates(draft: CreateCalendarEventDraft): Date[] {
   if (!draft.repeat) {
     return [normalizeDate(draft.selectedDate)]
@@ -134,8 +114,7 @@ function getOccurrenceDates(draft: CreateCalendarEventDraft): Date[] {
   const selectedDate = normalizeDate(draft.selectedDate)
   const activeDays = getRepeatDayIndexes(draft)
   const dates: Date[] = []
-  const untilDate =
-    draft.repeatEndType === 'date' ? normalizeDate(draft.repeatUntil) : null
+  const untilDate = draft.repeatEndType === 'date' ? normalizeDate(draft.repeatUntil) : null
 
   for (
     let cursor = new Date(selectedDate);
@@ -158,10 +137,6 @@ function getOccurrenceDates(draft: CreateCalendarEventDraft): Date[] {
   }
 
   return dates
-}
-
-function getRepeatDayCodes(draft: CreateCalendarEventDraft): string[] {
-  return getRepeatDayIndexes(draft).map((index) => RRULE_BYDAY[index] ?? 'MO')
 }
 
 function getRepeatDayIndexes(draft: CreateCalendarEventDraft): number[] {
@@ -198,10 +173,6 @@ function toMinutes(value: string): number {
 
 function formatDate(value: Date): string {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
-}
-
-function formatUntilDate(value: Date): string {
-  return `${value.getFullYear()}${String(value.getMonth() + 1).padStart(2, '0')}${String(value.getDate()).padStart(2, '0')}T235959Z`
 }
 
 function normalizeDate(value: Date): Date {

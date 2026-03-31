@@ -4,6 +4,7 @@ import DayView from './DayView'
 import type { CalendarEvent } from '../data/events'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
 import type { TimedSelectionRange } from '../lib/calendarDrag'
+import type { GoogleCalendarDeleteScope } from '../lib/googleCalendarWriteback'
 
 interface FloatingDaySidebarProps {
   events: CalendarEvent[]
@@ -11,7 +12,7 @@ interface FloatingDaySidebarProps {
   today: Date
   onClose: () => void
   onEventChange: (event: CalendarEvent) => Promise<void> | void
-  onEventDelete: (event: CalendarEvent) => Promise<void> | void
+  onEventDelete: (event: CalendarEvent, scope?: GoogleCalendarDeleteScope) => Promise<void> | void
   onTimedSelectionCreate: (date: Date, range: TimedSelectionRange) => void
 }
 

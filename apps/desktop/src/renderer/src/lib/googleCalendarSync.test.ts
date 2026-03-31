@@ -29,6 +29,7 @@ describe('buildGoogleCalendarPresentation', () => {
         {
           id: 'evt-1',
           calendarId: 'primary',
+          recurringEventId: 'series-1',
           status: 'confirmed',
           title: 'Standup',
           location: 'Room 301',
@@ -65,7 +66,92 @@ describe('buildGoogleCalendarPresentation', () => {
         source: {
           provider: 'google',
           calendarId: 'primary',
-          eventId: 'evt-1',
+          eventId: 'series-1',
+          instanceEventId: 'evt-1',
+          recurringEventId: 'series-1',
+          timeZone: 'Asia/Kuala_Lumpur'
+        }
+      }
+    ])
+  })
+
+  test('inherits recurrence details from the recurring series for expanded instances', () => {
+    const presentation = buildGoogleCalendarPresentation(
+      [
+        {
+          id: 'primary',
+          summary: 'Work',
+          summaryOverride: null,
+          description: null,
+          primary: true,
+          backgroundColor: null,
+          foregroundColor: null,
+          timeZone: 'Asia/Kuala_Lumpur',
+          accessRole: 'owner',
+          dataOwner: null,
+          selected: true,
+          hidden: false
+        }
+      ],
+      [
+        {
+          id: 'evt-1',
+          calendarId: 'primary',
+          recurringEventId: 'series-1',
+          status: 'confirmed',
+          title: 'Standup',
+          htmlLink: null,
+          allDay: false,
+          start: {
+            dateTime: '2026-03-31T09:00:00',
+            date: null,
+            timeZone: 'Asia/Kuala_Lumpur'
+          },
+          end: {
+            dateTime: '2026-03-31T09:30:00',
+            date: null,
+            timeZone: 'Asia/Kuala_Lumpur'
+          }
+        },
+        {
+          id: 'series-1',
+          calendarId: 'primary',
+          status: 'confirmed',
+          title: 'Standup',
+          recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO,TU;UNTIL=20260430T235959Z'],
+          htmlLink: null,
+          allDay: false,
+          start: {
+            dateTime: '2026-03-30T09:00:00',
+            date: null,
+            timeZone: 'Asia/Kuala_Lumpur'
+          },
+          end: {
+            dateTime: '2026-03-30T09:30:00',
+            date: null,
+            timeZone: 'Asia/Kuala_Lumpur'
+          }
+        }
+      ]
+    )
+
+    expect(presentation.events).toEqual([
+      {
+        id: 'google:primary:evt-1',
+        title: 'Standup',
+        date: '2026-03-31',
+        startTime: '09:00',
+        endTime: '09:30',
+        allDay: false,
+        color: 'violet',
+        calendar: 'Work',
+        source: {
+          provider: 'google',
+          calendarId: 'primary',
+          eventId: 'series-1',
+          instanceEventId: 'evt-1',
+          recurringEventId: 'series-1',
+          recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO,TU;UNTIL=20260430T235959Z'],
           timeZone: 'Asia/Kuala_Lumpur'
         }
       }

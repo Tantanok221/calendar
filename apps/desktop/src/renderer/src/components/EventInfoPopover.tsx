@@ -1,16 +1,11 @@
 import { useEffect, useRef } from 'react'
-import {
-  CalendarBlank,
-  Clock,
-  MapPin,
-  PencilSimple,
-  Trash,
-  X
-} from '@phosphor-icons/react'
+import { CalendarBlank, Clock, MapPin, PencilSimple, Repeat, Trash, X } from '@phosphor-icons/react'
 import { EVENT_COLORS, timeToMinutes } from '../data/events'
 import type { CalendarEvent } from '../data/events'
 import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
+import { formatGoogleCalendarRecurrenceSummary } from '../lib/googleCalendarRecurrence'
+import type { GoogleCalendarDeleteScope } from '../lib/googleCalendarWriteback'
 
 interface Props {
   event: CalendarEvent
@@ -18,7 +13,7 @@ interface Props {
   calendars: RendererCalendar[]
   editable?: boolean
   onEdit: () => void
-  onDelete: (event: CalendarEvent) => Promise<void> | void
+  onDelete: (event: CalendarEvent, scope?: GoogleCalendarDeleteScope) => Promise<void> | void
   onClose: () => void
 }
 
@@ -86,6 +81,9 @@ export default function EventInfoPopover({
   const dateLabel = formatDateLabel(event.date)
   const durationLabel =
     event.startTime && event.endTime ? getDurationLabel(event.startTime, event.endTime) : ''
+  const recurrenceLabel =
+    formatGoogleCalendarRecurrenceSummary(event.source?.recurrence) ??
+    (event.source?.recurringEventId ? 'Repeats' : null)
 
   return (
     <div
@@ -118,7 +116,10 @@ export default function EventInfoPopover({
       `}</style>
 
       {/* Title + close */}
-      <div className="flex items-start justify-between gap-2" style={{ padding: '13px 13px 10px 14px' }}>
+      <div
+        className="flex items-start justify-between gap-2"
+        style={{ padding: '13px 13px 10px 14px' }}
+      >
         <h3
           className="flex-1 min-w-0 leading-snug"
           style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', wordBreak: 'break-word' }}
@@ -149,9 +150,7 @@ export default function EventInfoPopover({
           <CalendarBlank size={12} style={{ color: c.text, flexShrink: 0 }} />
           <span style={{ fontSize: 12, color: c.text, fontWeight: 500 }}>
             {dateLabel}
-            {event.allDay && (
-              <span style={{ marginLeft: 5, opacity: 0.65 }}>· All day</span>
-            )}
+            {event.allDay && <span style={{ marginLeft: 5, opacity: 0.65 }}>· All day</span>}
           </span>
         </div>
         {/* Time */}
@@ -199,14 +198,26 @@ export default function EventInfoPopover({
           </div>
         )}
 
+        {/* Repeat */}
+        {recurrenceLabel && (
+          <div className="flex items-center gap-2">
+            <Repeat size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: 'var(--text)' }}>{recurrenceLabel}</span>
+          </div>
+        )}
+
         {/* Calendar */}
         <div className="flex items-center gap-2">
-          <span className="flex items-center justify-center shrink-0" style={{ width: 12, height: 12 }}>
-            <span className="rounded-full" style={{ width: 8, height: 8, background: calendarColors.dot }} />
+          <span
+            className="flex items-center justify-center shrink-0"
+            style={{ width: 12, height: 12 }}
+          >
+            <span
+              className="rounded-full"
+              style={{ width: 8, height: 8, background: calendarColors.dot }}
+            />
           </span>
-          <span style={{ fontSize: 12, color: 'var(--text)' }}>
-            {event.calendar}
-          </span>
+          <span style={{ fontSize: 12, color: 'var(--text)' }}>{event.calendar}</span>
         </div>
       </div>
 
@@ -228,7 +239,10 @@ export default function EventInfoPopover({
             </button>
             <button
               aria-label="Delete event"
-              onClick={() => void onDelete(event)}
+              onClick={() => {
+                onClose()
+                void onDelete(event)
+              }}
               className="flex items-center justify-center rounded-lg transition-all duration-100"
               style={{ width: 32, height: 32, color: 'var(--text-dim)' }}
               onMouseEnter={(e) => {

@@ -5,6 +5,9 @@ import type {
 } from '../../../main/googleCalendar/types'
 import type { CalendarEvent, GoogleEventSource } from '../data/events'
 
+export type GoogleCalendarDeleteScope = 'instance' | 'series'
+export type GoogleCalendarSaveScope = 'instance' | 'series'
+
 type GoogleBackedCalendarEvent = CalendarEvent & {
   source: GoogleEventSource
 }
@@ -13,6 +16,12 @@ export function isGoogleBackedCalendarEvent(
   event: CalendarEvent
 ): event is GoogleBackedCalendarEvent {
   return event.source?.provider === 'google'
+}
+
+export function isRecurringGoogleCalendarEvent(
+  event: CalendarEvent
+): event is GoogleBackedCalendarEvent {
+  return isGoogleBackedCalendarEvent(event) && Boolean(event.source.recurringEventId)
 }
 
 export function buildGoogleCalendarUpdateFromRendererEvent(
@@ -31,7 +40,8 @@ export function buildGoogleCalendarUpdateFromRendererEvent(
 
 export function buildGoogleCalendarSavePlan(
   previousEvent: CalendarEvent,
-  updatedEvent: CalendarEvent
+  updatedEvent: CalendarEvent,
+  scope: GoogleCalendarSaveScope = 'series'
 ): {
   update: UpdateGoogleCalendarEventInput
   move: MoveGoogleCalendarEventInput | null
@@ -40,7 +50,11 @@ export function buildGoogleCalendarSavePlan(
     return null
   }
 
-  const update = buildUpdatePayload(previousEvent.source, updatedEvent)
+  const update = buildUpdatePayload(previousEvent.source, updatedEvent, scope)
+  const targetEventId =
+    scope === 'instance' && previousEvent.source.instanceEventId
+      ? previousEvent.source.instanceEventId
+      : previousEvent.source.eventId
 
   return {
     update,
@@ -49,17 +63,25 @@ export function buildGoogleCalendarSavePlan(
         ? null
         : {
             calendarId: previousEvent.source.calendarId,
-            eventId: previousEvent.source.eventId,
+            eventId: targetEventId,
             destinationCalendarId: updatedEvent.source.calendarId
           }
   }
 }
 
 export function buildGoogleCalendarDeleteFromRendererEvent(
-  event: CalendarEvent
+  event: CalendarEvent,
+  scope: GoogleCalendarDeleteScope = 'series'
 ): DeleteGoogleCalendarEventInput | null {
   if (!isGoogleBackedCalendarEvent(event)) {
     return null
+  }
+
+  if (scope === 'instance' && event.source.instanceEventId) {
+    return {
+      calendarId: event.source.calendarId,
+      eventId: event.source.instanceEventId
+    }
   }
 
   return {
@@ -69,15 +91,25 @@ export function buildGoogleCalendarDeleteFromRendererEvent(
 }
 
 function buildUpdatePayload(
-  source: GoogleEventSource,
-  event: CalendarEvent
+  previousSource: GoogleEventSource,
+  event: CalendarEvent,
+  scope: GoogleCalendarSaveScope
 ): UpdateGoogleCalendarEventInput {
+  const eventSource = event.source?.provider === 'google' ? event.source : previousSource
+  const recurrence =
+    eventSource.recurrenceDirty === true ? { recurrence: eventSource.recurrence ?? [] } : {}
+  const targetEventId =
+    scope === 'instance' && previousSource.instanceEventId
+      ? previousSource.instanceEventId
+      : previousSource.eventId
+
   if (event.allDay) {
     return {
-      calendarId: source.calendarId,
-      eventId: source.eventId,
+      calendarId: previousSource.calendarId,
+      eventId: targetEventId,
       summary: event.title.trim(),
       location: normalizeLocation(event.location),
+      ...recurrence,
       start: {
         dateTime: null,
         date: event.date,
@@ -96,19 +128,20 @@ function buildUpdatePayload(
   }
 
   return {
-    calendarId: source.calendarId,
-    eventId: source.eventId,
+    calendarId: previousSource.calendarId,
+    eventId: targetEventId,
     summary: event.title.trim(),
     location: normalizeLocation(event.location),
+    ...recurrence,
     start: {
       dateTime: `${event.date}T${event.startTime}:00.000`,
       date: null,
-      timeZone: source.timeZone
+      timeZone: previousSource.timeZone
     },
     end: {
       dateTime: `${event.date}T${event.endTime}:00.000`,
       date: null,
-      timeZone: source.timeZone
+      timeZone: previousSource.timeZone
     }
   }
 }

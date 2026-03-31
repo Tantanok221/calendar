@@ -17,21 +17,19 @@ import { cn } from '../lib/utils'
 import { getClosestTimeSuggestion, getTimeSuggestions } from '../lib/timeSuggestions'
 import { EVENT_COLORS, isSameDay } from '../data/events'
 import type { CalendarEvent } from '../data/events'
-import type { RepeatEndType } from '../lib/googleCalendarCreate'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
-import {
-  getDefaultWritableCalendarId,
-  getWritableCalendars
-} from '../lib/calendarPermissions'
+import { getDefaultWritableCalendarId, getWritableCalendars } from '../lib/calendarPermissions'
 import { buildUpdatedEventFromDetailDraft } from '../lib/eventDetailDraft'
+import { parseGoogleCalendarRecurrence, type RepeatEndType } from '../lib/googleCalendarRecurrence'
 import { shouldSubmitOnEnterKeyDown } from '../lib/keyboardSubmit'
 import { addDays, addMonths, getNextMonday, useToday } from '../lib/today'
+import type { GoogleCalendarDeleteScope } from '../lib/googleCalendarWriteback'
 
 interface Props {
   event: CalendarEvent
   calendars: RendererCalendar[]
   onSave: (event: CalendarEvent) => Promise<void> | void
-  onDelete: (event: CalendarEvent) => Promise<void> | void
+  onDelete: (event: CalendarEvent, scope?: GoogleCalendarDeleteScope) => Promise<void> | void
   onClose: () => void
 }
 
@@ -114,7 +112,9 @@ function TimeInput({ value, onChange }: TimeInputProps): React.JSX.Element {
             }
             if (e.key === 'Enter' && suggestions.length > 0) {
               e.preventDefault()
-              onChange(suggestions[activeIndex] ?? suggestions[defaultActiveIndex] ?? suggestions[0])
+              onChange(
+                suggestions[activeIndex] ?? suggestions[defaultActiveIndex] ?? suggestions[0]
+              )
               setOpen(false)
             }
           }}
@@ -153,7 +153,10 @@ function TimeInput({ value, onChange }: TimeInputProps): React.JSX.Element {
                   onChange(t)
                   setOpen(false)
                 }}
-                className={cn('w-full text-left px-3 py-1.5 text-xs transition-colors', isActive ? 'font-semibold' : 'font-normal')}
+                className={cn(
+                  'w-full text-left px-3 py-1.5 text-xs transition-colors',
+                  isActive ? 'font-semibold' : 'font-normal'
+                )}
                 style={{
                   color: isActive ? 'var(--accent-text)' : 'var(--text)',
                   background: isActive ? 'var(--accent-bg)' : 'transparent'
@@ -171,7 +174,9 @@ function TimeInput({ value, onChange }: TimeInputProps): React.JSX.Element {
             )
           })}
           {suggestions.length === 0 && (
-            <p className="px-3 py-2 text-xs" style={{ color: 'var(--text-dim)' }}>No match</p>
+            <p className="px-3 py-2 text-xs" style={{ color: 'var(--text-dim)' }}>
+              No match
+            </p>
           )}
         </Popover.Content>
       </Popover.Portal>
@@ -269,7 +274,9 @@ function DatePicker({ value, onChange }: DatePickerProps): React.JSX.Element {
             >
               <CaretLeft size={11} weight="bold" />
             </button>
-            <span className="text-xs font-semibold" style={{ color: 'var(--text)' }}>{monthLabel}</span>
+            <span className="text-xs font-semibold" style={{ color: 'var(--text)' }}>
+              {monthLabel}
+            </span>
             <button
               onClick={() => navMonth(1)}
               className="flex items-center justify-center w-6 h-6 rounded-md transition-colors"
@@ -290,7 +297,9 @@ function DatePicker({ value, onChange }: DatePickerProps): React.JSX.Element {
           <div className="grid grid-cols-7 mb-1">
             {DOW_HEADER.map((d, i) => (
               <div key={i} className="flex items-center justify-center h-6">
-                <span className="text-[10px] font-medium" style={{ color: 'var(--text-dim)' }}>{d}</span>
+                <span className="text-[10px] font-medium" style={{ color: 'var(--text-dim)' }}>
+                  {d}
+                </span>
               </div>
             ))}
           </div>
@@ -311,15 +320,27 @@ function DatePicker({ value, onChange }: DatePickerProps): React.JSX.Element {
                   }}
                   className="flex items-center justify-center h-7 w-full rounded-md text-[11px] font-medium transition-all duration-100"
                   style={{
-                    background: isSelected ? 'var(--accent)' : isToday ? 'var(--accent-bg)' : 'transparent',
-                    color: isSelected ? 'var(--accent-on)' : isToday ? 'var(--accent-text)' : 'var(--text)',
+                    background: isSelected
+                      ? 'var(--accent)'
+                      : isToday
+                        ? 'var(--accent-bg)'
+                        : 'transparent',
+                    color: isSelected
+                      ? 'var(--accent-on)'
+                      : isToday
+                        ? 'var(--accent-text)'
+                        : 'var(--text)',
                     fontWeight: isSelected || isToday ? 600 : 400
                   }}
                   onMouseEnter={(e) => {
                     if (!isSelected) e.currentTarget.style.background = 'var(--surface-2)'
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = isSelected ? 'var(--accent)' : isToday ? 'var(--accent-bg)' : 'transparent'
+                    e.currentTarget.style.background = isSelected
+                      ? 'var(--accent)'
+                      : isToday
+                        ? 'var(--accent-bg)'
+                        : 'transparent'
                   }}
                 >
                   {day}
@@ -381,17 +402,23 @@ export default function EventDetailPopover({
   const [allDay, setAllDay] = useState(event.allDay ?? false)
   const [startTime, setStartTime] = useState(event.startTime ? to12h(event.startTime) : '10:00 AM')
   const [endTime, setEndTime] = useState(event.endTime ? to12h(event.endTime) : '11:00 AM')
+  const parsedRecurrence = parseGoogleCalendarRecurrence(event.source?.recurrence)
   const [calendarId, setCalendarId] = useState(() =>
     getDefaultWritableCalendarId(
       calendars,
       event.source?.calendarId ?? calendars.find((calendar) => calendar.name === event.calendar)?.id
     )
   )
-  const [repeat, setRepeat] = useState(false)
-  const [repeatDays, setRepeatDays] = useState<number[]>([])
-  const [repeatEndType, setRepeatEndType] = useState<RepeatEndType>('date')
-  const [repeatUntil, setRepeatUntil] = useState(() => addMonths(parseDateStr(event.date), 1))
-  const [repeatCount, setRepeatCount] = useState(4)
+  const [repeatChanged, setRepeatChanged] = useState(false)
+  const [repeat, setRepeat] = useState(Boolean(parsedRecurrence))
+  const [repeatDays, setRepeatDays] = useState<number[]>(() => parsedRecurrence?.repeatDays ?? [])
+  const [repeatEndType, setRepeatEndType] = useState<RepeatEndType>(
+    parsedRecurrence?.repeatEndType ?? 'date'
+  )
+  const [repeatUntil, setRepeatUntil] = useState(
+    () => parsedRecurrence?.repeatUntil ?? addMonths(parseDateStr(event.date), 1)
+  )
+  const [repeatCount, setRepeatCount] = useState(parsedRecurrence?.repeatCount ?? 4)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -409,7 +436,8 @@ export default function EventDetailPopover({
   }, [calendarId, calendars])
 
   const toggleRepeatDay = (idx: number): void => {
-    setRepeatDays((prev) => prev.includes(idx) ? prev.filter((d) => d !== idx) : [...prev, idx])
+    setRepeatChanged(true)
+    setRepeatDays((prev) => (prev.includes(idx) ? prev.filter((d) => d !== idx) : [...prev, idx]))
   }
 
   const handleSave = async (): Promise<void> => {
@@ -431,7 +459,13 @@ export default function EventDetailPopover({
           endTime,
           calendarId: selectedCalendar.id,
           calendarName: selectedCalendar.name,
-          color: selectedCalendar.color
+          color: selectedCalendar.color,
+          repeatChanged,
+          repeat,
+          repeatDays,
+          repeatEndType,
+          repeatUntil,
+          repeatCount
         })
       )
       onClose()
@@ -591,7 +625,9 @@ export default function EventDetailPopover({
               <Clock size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
               <div className="flex items-center gap-2">
                 <TimeInput value={startTime} onChange={setStartTime} />
-                <span className="text-[11px]" style={{ color: 'var(--text-dim)' }}>→</span>
+                <span className="text-[11px]" style={{ color: 'var(--text-dim)' }}>
+                  →
+                </span>
                 <TimeInput value={endTime} onChange={setEndTime} />
               </div>
             </div>
@@ -625,10 +661,16 @@ export default function EventDetailPopover({
 
           {/* ── Repeat toggle ── */}
           <div className="flex items-center gap-2 px-4 py-3">
-            <Repeat size={14} style={{ color: repeat ? 'var(--accent-text)' : 'var(--text-muted)', flexShrink: 0 }} />
+            <Repeat
+              size={14}
+              style={{ color: repeat ? 'var(--accent-text)' : 'var(--text-muted)', flexShrink: 0 }}
+            />
             <button
               disabled={isBusy}
-              onClick={() => setRepeat(!repeat)}
+              onClick={() => {
+                setRepeatChanged(true)
+                setRepeat(!repeat)
+              }}
               className="flex items-center gap-2 text-xs transition-colors select-none"
               style={{ color: repeat ? 'var(--accent-text)' : 'var(--text-muted)' }}
             >
@@ -655,7 +697,10 @@ export default function EventDetailPopover({
               style={{ background: 'var(--surface-3)', border: '1px solid var(--border)' }}
             >
               <div className="flex flex-col gap-1.5">
-                <p className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: 'var(--text-dim)' }}>
+                <p
+                  className="text-[10px] uppercase tracking-widest font-semibold"
+                  style={{ color: 'var(--text-dim)' }}
+                >
                   Repeats on
                 </p>
                 <div className="flex items-center gap-1">
@@ -696,7 +741,10 @@ export default function EventDetailPopover({
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <p className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: 'var(--text-dim)' }}>
+                <p
+                  className="text-[10px] uppercase tracking-widest font-semibold"
+                  style={{ color: 'var(--text-dim)' }}
+                >
                   Ends
                 </p>
                 <div
@@ -709,7 +757,10 @@ export default function EventDetailPopover({
                       <button
                         key={type}
                         disabled={isBusy}
-                        onClick={() => setRepeatEndType(type)}
+                        onClick={() => {
+                          setRepeatChanged(true)
+                          setRepeatEndType(type)
+                        }}
                         className="px-3 py-1 text-[11px] font-medium transition-colors"
                         style={{
                           background: active ? 'var(--accent)' : 'transparent',
@@ -730,8 +781,16 @@ export default function EventDetailPopover({
 
                 {repeatEndType === 'date' ? (
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Until</span>
-                    <DatePicker value={repeatUntil} onChange={setRepeatUntil} />
+                    <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                      Until
+                    </span>
+                    <DatePicker
+                      value={repeatUntil}
+                      onChange={(value) => {
+                        setRepeatChanged(true)
+                        setRepeatUntil(value)
+                      }}
+                    />
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
@@ -741,7 +800,10 @@ export default function EventDetailPopover({
                       max={999}
                       disabled={isBusy}
                       value={repeatCount}
-                      onChange={(e) => setRepeatCount(Math.max(1, parseInt(e.target.value) || 1))}
+                      onChange={(e) => {
+                        setRepeatChanged(true)
+                        setRepeatCount(Math.max(1, parseInt(e.target.value) || 1))
+                      }}
                       className="w-14 text-xs px-2 py-1 rounded-md outline-none text-center"
                       style={{
                         background: 'var(--surface-2)',
@@ -762,7 +824,10 @@ export default function EventDetailPopover({
 
           {/* ── Calendar selector ── */}
           <div className="px-4 pt-3 pb-2 flex flex-col gap-2">
-            <p className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: 'var(--text-dim)' }}>
+            <p
+              className="text-[10px] uppercase tracking-widest font-semibold"
+              style={{ color: 'var(--text-dim)' }}
+            >
               Calendar
             </p>
             {writableCalendars.length > 0 ? (
@@ -789,7 +854,10 @@ export default function EventDetailPopover({
                           if (!active) e.currentTarget.style.borderColor = 'var(--border)'
                         }}
                       >
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: calColors.dot }} />
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ background: calColors.dot }}
+                        />
                         {cal.name}
                       </button>
                     )
@@ -814,12 +882,14 @@ export default function EventDetailPopover({
             )}
 
             <div className="flex items-center justify-between">
-            {/* Delete side */}
+              {/* Delete side */}
               {confirmDelete ? (
                 <div className="flex w-full items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <Warning size={13} style={{ color: '#C98A76' }} />
-                    <span className="text-[11px]" style={{ color: '#C98A76' }}>Delete this event?</span>
+                    <span className="text-[11px]" style={{ color: '#C98A76' }}>
+                      Delete this event?
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -842,7 +912,11 @@ export default function EventDetailPopover({
                       onClick={() => void handleDelete()}
                       disabled={isBusy}
                       className="px-2 py-1 rounded-md text-[11px] font-semibold transition-all"
-                      style={{ background: 'rgba(192,120,96,0.15)', color: '#C98A76', border: '1px solid rgba(192,120,96,0.35)' }}
+                      style={{
+                        background: 'rgba(192,120,96,0.15)',
+                        color: '#C98A76',
+                        border: '1px solid rgba(192,120,96,0.35)'
+                      }}
                       onMouseEnter={(e) => (e.currentTarget.style.filter = 'brightness(1.1)')}
                       onMouseLeave={(e) => (e.currentTarget.style.filter = 'none')}
                     >

@@ -5,7 +5,11 @@ export interface GoogleEventSource {
   provider: 'google'
   calendarId: string
   eventId: string
+  recurringEventId?: string
+  instanceEventId?: string
   timeZone: string | null
+  recurrence?: string[]
+  recurrenceDirty?: boolean
 }
 
 export interface CalendarEvent {
