@@ -287,8 +287,7 @@ function DropSlot({
     previewDurationMinutes !== undefined
       ? getTimedDragPreviewRange(startMinutes, previewDurationMinutes)
       : null
-  const top =
-    ((previewRange?.startMinutes ?? startMinutes) - START_HOUR * 60) / 60 * HOUR_HEIGHT
+  const top = (((previewRange?.startMinutes ?? startMinutes) - START_HOUR * 60) / 60) * HOUR_HEIGHT
   const height =
     (((previewRange?.endMinutes ?? startMinutes + SNAP_MINUTES) -
       (previewRange?.startMinutes ?? startMinutes)) /
@@ -314,7 +313,13 @@ function DropSlot({
   )
 }
 
-function AllDayDropSlot({ id, children }: { id: string; children: React.ReactNode }): React.JSX.Element {
+function AllDayDropSlot({
+  id,
+  children
+}: {
+  id: string
+  children: React.ReactNode
+}): React.JSX.Element {
   const { ref, isDropTarget } = useDroppable({ id })
 
   return (
@@ -608,8 +613,7 @@ export default function WeekView({
   const hasAnyAllDay = days.some((day) => allDayEvents(day).length > 0)
   const draggedTimedEvent = draggedEventId
     ? events.find(
-        (event) =>
-          event.id === draggedEventId && !event.allDay && event.startTime && event.endTime
+        (event) => event.id === draggedEventId && !event.allDay && event.startTime && event.endTime
       )
     : null
   const draggedTimedEventDurationMinutes =
@@ -799,14 +803,8 @@ export default function WeekView({
                       <DraggableEventBlock
                         key={event.id}
                         event={event}
-                        layout={
-                          dayTimedEventLayout[event.id] ?? { columnIndex: 0, columnCount: 1 }
-                        }
+                        layout={dayTimedEventLayout[event.id] ?? { columnIndex: 0, columnCount: 1 }}
                         editable={isCalendarEventEditable(event, calendars)}
-                        event={event}
-                        layout={
-                          dayTimedEventLayout[event.id] ?? { columnIndex: 0, columnCount: 1 }
-                        }
                         selected={selectedEventId === event.id}
                         resizing={timedResize?.eventId === event.id}
                         onClick={handleEventClick}

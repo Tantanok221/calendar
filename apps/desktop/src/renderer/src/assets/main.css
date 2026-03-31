@@ -17,12 +17,17 @@
 /* macOS inset traffic-light clearance */
 :root {
   --traffic-light-h: 36px;
+  --traffic-light-w: 72px;
 }
 
 /* ── Utility animations ────────────────────────────────── */
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ── Radix UI / shadcn animations ──────────────────────── */
@@ -105,7 +110,7 @@
 /* ── Time grid layout ───────────────────────────────────── */
 .time-grid-scroll {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: overlay;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }

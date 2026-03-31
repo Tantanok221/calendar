@@ -1,4 +1,5 @@
-import { CaretLeft, CaretRight, GearSix } from '@phosphor-icons/react'
+import { CaretLeft, CaretRight, GearSix, SidebarSimple } from '@phosphor-icons/react'
+import { motion } from 'framer-motion'
 import { getWeekStart } from '../data/events'
 
 export type ViewType = 'day' | 'week' | 'month'
@@ -34,6 +35,8 @@ interface TopBarProps {
   currentDate: Date
   onPrev: () => void
   onNext: () => void
+  sidebarVisible: boolean
+  onSidebarToggle: () => void
   onSettingsOpen: () => void
 }
 
@@ -43,17 +46,42 @@ export default function TopBar({
   currentDate,
   onPrev,
   onNext,
-  onSettingsOpen,
+  sidebarVisible,
+  onSidebarToggle,
+  onSettingsOpen
 }: TopBarProps): React.JSX.Element {
   return (
-    <div
-      className="drag-region flex items-center gap-2 px-4 shrink-0"
+    <motion.div
+      className="drag-region flex items-center gap-2 pr-4 shrink-0"
+      initial={false}
+      animate={{ paddingLeft: sidebarVisible ? 16 : 80 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 30, mass: 0.9 }}
       style={{
         height: 'var(--topbar-h)',
+        paddingBottom: 'calc(var(--topbar-h) - var(--traffic-light-h))',
         borderBottom: '1px solid var(--border)',
         background: 'var(--bg)'
       }}
     >
+      <button
+        onClick={onSidebarToggle}
+        title={sidebarVisible ? 'Hide sidebar' : 'Show sidebar'}
+        className="no-drag flex items-center justify-center w-7 h-7 rounded-md transition-colors duration-100"
+        style={{
+          color: 'var(--text-muted)'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'var(--surface-2)'
+          e.currentTarget.style.color = 'var(--text)'
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent'
+          e.currentTarget.style.color = 'var(--text-muted)'
+        }}
+      >
+        <SidebarSimple size={15} weight={sidebarVisible ? 'fill' : 'regular'} />
+      </button>
+
       {/* Navigation */}
       <div className="no-drag flex items-center gap-1">
         <button
@@ -123,6 +151,6 @@ export default function TopBar({
       >
         <GearSix size={15} weight="regular" />
       </button>
-    </div>
+    </motion.div>
   )
 }

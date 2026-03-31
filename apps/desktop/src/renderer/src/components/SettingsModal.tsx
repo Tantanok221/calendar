@@ -1,6 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { X, GoogleLogo, CheckCircle, WarningCircle, ArrowClockwise, Keyboard } from '@phosphor-icons/react'
+import {
+  X,
+  GoogleLogo,
+  CheckCircle,
+  WarningCircle,
+  ArrowClockwise,
+  Keyboard
+} from '@phosphor-icons/react'
 import type { GoogleCalendarConnectionStatus } from '../../../main/googleCalendar/types'
 import type { ShortcutKeys, ShortcutModifier } from '../lib/calendarKeyboard'
 
@@ -16,13 +23,15 @@ interface SettingsModalProps {
   shortcutErrorMessage: string | null
   sidebarShortcut: ShortcutKeys | null
   onSidebarShortcutChange: (shortcut: ShortcutKeys | null) => void
+  sidebarToggleShortcut: ShortcutKeys | null
+  onSidebarToggleShortcutChange: (shortcut: ShortcutKeys | null) => void
 }
 
 function GoogleCalendarRow({
   status,
   isPending,
   errorMessage,
-  onConnect,
+  onConnect
 }: {
   status: GoogleCalendarConnectionStatus | null
   isPending: boolean
@@ -36,21 +45,19 @@ function GoogleCalendarRow({
       className="flex items-center gap-4 px-4 py-3.5 rounded-xl"
       style={{
         background: 'var(--surface-2)',
-        border: '1px solid var(--border)',
+        border: '1px solid var(--border)'
       }}
     >
-      {/* Icon */}
       <div
         className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0"
         style={{
           background: 'var(--surface-3)',
-          border: '1px solid var(--border-strong)',
+          border: '1px solid var(--border-strong)'
         }}
       >
         <GoogleLogo size={18} weight="bold" style={{ color: 'var(--text-muted)' }} />
       </div>
 
-      {/* Info */}
       <div className="flex flex-col gap-0.5 flex-1 min-w-0">
         <span className="text-xs font-semibold" style={{ color: 'var(--text)' }}>
           Google Calendar
@@ -76,7 +83,6 @@ function GoogleCalendarRow({
         )}
       </div>
 
-      {/* Action */}
       {!isConnected && (
         <button
           onClick={onConnect}
@@ -85,7 +91,7 @@ function GoogleCalendarRow({
           style={{
             background: 'var(--accent)',
             color: 'var(--accent-on)',
-            opacity: isPending ? 0.6 : 1,
+            opacity: isPending ? 0.6 : 1
           }}
           onMouseEnter={(e) => {
             if (!isPending) e.currentTarget.style.filter = 'brightness(1.08)'
@@ -112,12 +118,12 @@ function GoogleCalendarRow({
   )
 }
 
-function formatModifier(mod: string): string {
-  if (mod === 'Meta') return '⌘'
-  if (mod === 'Control') return '⌃'
-  if (mod === 'Alt') return '⌥'
-  if (mod === 'Shift') return '⇧'
-  return mod
+function formatModifier(modifier: string): string {
+  if (modifier === 'Meta') return '⌘'
+  if (modifier === 'Control') return '⌃'
+  if (modifier === 'Alt') return '⌥'
+  if (modifier === 'Shift') return '⇧'
+  return modifier
 }
 
 function KeyBadge({ label }: { label: string }): React.JSX.Element {
@@ -127,7 +133,7 @@ function KeyBadge({ label }: { label: string }): React.JSX.Element {
       style={{
         background: 'var(--surface-3)',
         border: '1px solid var(--border-strong)',
-        color: 'var(--text-muted)',
+        color: 'var(--text-muted)'
       }}
     >
       {label}
@@ -137,34 +143,37 @@ function KeyBadge({ label }: { label: string }): React.JSX.Element {
 
 function ShortcutRecorder({
   shortcut,
-  onChange,
+  onChange
 }: {
   shortcut: ShortcutKeys | null
-  onChange: (s: ShortcutKeys | null) => void
+  onChange: (shortcut: ShortcutKeys | null) => void
 }): React.JSX.Element {
   const [recording, setRecording] = useState(false)
 
   useEffect(() => {
-    if (!recording) return
+    if (!recording) {
+      return
+    }
 
-    function onKeyDown(e: KeyboardEvent): void {
-      e.preventDefault()
+    function onKeyDown(event: KeyboardEvent): void {
+      event.preventDefault()
 
-      if (e.key === 'Escape') {
+      if (event.key === 'Escape') {
         setRecording(false)
         return
       }
 
       const modifiers: ShortcutModifier[] = []
-      if (e.metaKey) modifiers.push('Meta')
-      if (e.ctrlKey) modifiers.push('Control')
-      if (e.altKey) modifiers.push('Alt')
-      if (e.shiftKey) modifiers.push('Shift')
+      if (event.metaKey) modifiers.push('Meta')
+      if (event.ctrlKey) modifiers.push('Control')
+      if (event.altKey) modifiers.push('Alt')
+      if (event.shiftKey) modifiers.push('Shift')
 
-      const ignoredKeys = ['Meta', 'Control', 'Alt', 'Shift']
-      if (ignoredKeys.includes(e.key)) return
+      if (['Meta', 'Control', 'Alt', 'Shift'].includes(event.key)) {
+        return
+      }
 
-      onChange({ modifiers, key: e.key.toUpperCase() })
+      onChange({ modifiers, key: event.key.toUpperCase() })
       setRecording(false)
     }
 
@@ -176,8 +185,8 @@ function ShortcutRecorder({
     <div className="flex items-center gap-2">
       {!recording && shortcut ? (
         <div className="flex items-center gap-1">
-          {shortcut.modifiers.map((m) => (
-            <KeyBadge key={m} label={formatModifier(m)} />
+          {shortcut.modifiers.map((modifier) => (
+            <KeyBadge key={modifier} label={formatModifier(modifier)} />
           ))}
           <KeyBadge label={shortcut.key} />
         </div>
@@ -196,18 +205,18 @@ function ShortcutRecorder({
       ) : null}
 
       <button
-        onClick={() => setRecording((r) => !r)}
+        onClick={() => setRecording((currentValue) => !currentValue)}
         className="h-6 px-2 rounded-md text-[11px] font-medium transition-colors duration-100"
         style={
           recording
             ? {
                 background: 'var(--accent)',
-                color: 'var(--accent-on)',
+                color: 'var(--accent-on)'
               }
             : {
                 background: 'var(--surface-3)',
                 border: '1px solid var(--border-strong)',
-                color: 'var(--text-muted)',
+                color: 'var(--text-muted)'
               }
         }
       >
@@ -239,26 +248,26 @@ function ShortcutRow({
   label,
   description,
   shortcut,
-  onChange,
+  onChange
 }: {
   label: string
   description: string
   shortcut: ShortcutKeys | null
-  onChange: (s: ShortcutKeys | null) => void
+  onChange: (shortcut: ShortcutKeys | null) => void
 }): React.JSX.Element {
   return (
     <div
       className="flex items-center gap-4 px-4 py-3.5 rounded-xl"
       style={{
         background: 'var(--surface-2)',
-        border: '1px solid var(--border)',
+        border: '1px solid var(--border)'
       }}
     >
       <div
         className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0"
         style={{
           background: 'var(--surface-3)',
-          border: '1px solid var(--border-strong)',
+          border: '1px solid var(--border-strong)'
         }}
       >
         <Keyboard size={18} weight="bold" style={{ color: 'var(--text-muted)' }} />
@@ -280,7 +289,7 @@ function ShortcutRow({
 
 const NAV_ITEMS: { id: SettingsSection; label: string }[] = [
   { id: 'integrations', label: 'Integrations' },
-  { id: 'shortcuts', label: 'Shortcuts' },
+  { id: 'shortcuts', label: 'Shortcuts' }
 ]
 
 export default function SettingsModal({
@@ -292,12 +301,14 @@ export default function SettingsModal({
   onGoogleConnect,
   shortcutErrorMessage,
   sidebarShortcut,
-  onSidebarShortcutChange
+  onSidebarShortcutChange,
+  sidebarToggleShortcut,
+  onSidebarToggleShortcutChange
 }: SettingsModalProps): React.JSX.Element {
   const [activeSection, setActiveSection] = useState<SettingsSection>('integrations')
 
   return (
-    <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
+    <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay
           data-radix-dialog-overlay
@@ -315,16 +326,15 @@ export default function SettingsModal({
             height: 380,
             background: 'var(--surface)',
             border: '1px solid var(--border-strong)',
-            borderRadius: 14,
+            borderRadius: 14
           }}
         >
-          {/* Left nav */}
           <div
             className="flex flex-col shrink-0 pt-10 pb-3 px-2 gap-0.5"
             style={{
               width: 160,
               borderRight: '1px solid var(--border)',
-              background: 'var(--bg)',
+              background: 'var(--bg)'
             }}
           >
             <p
@@ -342,17 +352,19 @@ export default function SettingsModal({
                   activeSection === item.id
                     ? {
                         background: 'var(--surface-3)',
-                        color: 'var(--text)',
+                        color: 'var(--text)'
                       }
                     : { color: 'var(--text-muted)' }
                 }
                 onMouseEnter={(e) => {
-                  if (activeSection !== item.id)
+                  if (activeSection !== item.id) {
                     e.currentTarget.style.background = 'var(--surface-2)'
+                  }
                 }}
                 onMouseLeave={(e) => {
-                  if (activeSection !== item.id)
+                  if (activeSection !== item.id) {
                     e.currentTarget.style.background = 'transparent'
+                  }
                 }}
               >
                 {item.label}
@@ -360,9 +372,7 @@ export default function SettingsModal({
             ))}
           </div>
 
-          {/* Content */}
           <div className="flex flex-col flex-1 min-w-0 pt-10 px-5 pb-5">
-            {/* Close */}
             <Dialog.Close asChild>
               <button
                 className="absolute top-3 right-3 flex items-center justify-center w-6 h-6 rounded-md transition-colors z-10"
@@ -389,10 +399,7 @@ export default function SettingsModal({
                   >
                     Shortcuts
                   </Dialog.Title>
-                  <Dialog.Description
-                    className="text-[11px]"
-                    style={{ color: 'var(--text-dim)' }}
-                  >
+                  <Dialog.Description className="text-[11px]" style={{ color: 'var(--text-dim)' }}>
                     Customize keyboard shortcuts for quick actions.
                   </Dialog.Description>
                 </div>
@@ -409,6 +416,12 @@ export default function SettingsModal({
                     description="Open the floating day sidebar anywhere while the app is running"
                     shortcut={sidebarShortcut}
                     onChange={onSidebarShortcutChange}
+                  />
+                  <ShortcutRow
+                    label="Toggle main sidebar"
+                    description="Show or hide the main sidebar inside the desktop window"
+                    shortcut={sidebarToggleShortcut}
+                    onChange={onSidebarToggleShortcutChange}
                   />
                   {shortcutErrorMessage && (
                     <p className="text-[11px]" style={{ color: '#c07860' }}>
@@ -428,10 +441,7 @@ export default function SettingsModal({
                   >
                     Integrations
                   </Dialog.Title>
-                  <Dialog.Description
-                    className="text-[11px]"
-                    style={{ color: 'var(--text-dim)' }}
-                  >
+                  <Dialog.Description className="text-[11px]" style={{ color: 'var(--text-dim)' }}>
                     Connect external calendar accounts to sync your events.
                   </Dialog.Description>
                 </div>
