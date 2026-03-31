@@ -1,8 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 import {
   buildGoogleCalendarPresentation,
-  getGoogleCalendarSyncRange
+  getGoogleCalendarSyncRange,
+  partitionRendererCalendars
 } from './googleCalendarSync'
+import type { RendererCalendar } from './googleCalendarSync'
 
 describe('buildGoogleCalendarPresentation', () => {
   test('maps timed Google events into renderer events using calendar summaries', () => {
@@ -11,11 +13,16 @@ describe('buildGoogleCalendarPresentation', () => {
         {
           id: 'primary',
           summary: 'Work',
+          summaryOverride: null,
           description: null,
           primary: true,
           backgroundColor: null,
           foregroundColor: null,
-          timeZone: 'Asia/Kuala_Lumpur'
+          timeZone: 'Asia/Kuala_Lumpur',
+          accessRole: 'owner',
+          dataOwner: null,
+          selected: true,
+          hidden: false
         }
       ],
       [
@@ -40,7 +47,9 @@ describe('buildGoogleCalendarPresentation', () => {
       ]
     )
 
-    expect(presentation.calendars).toEqual([{ id: 'primary', name: 'Work', color: 'violet' }])
+    expect(presentation.calendars).toEqual([
+      { id: 'primary', name: 'Work', color: 'violet', group: 'my' }
+    ])
     expect(presentation.events).toEqual([
       {
         id: 'google:primary:evt-1',
@@ -67,11 +76,16 @@ describe('buildGoogleCalendarPresentation', () => {
         {
           id: 'team',
           summary: 'Team',
+          summaryOverride: null,
           description: null,
           primary: false,
           backgroundColor: null,
           foregroundColor: null,
-          timeZone: null
+          timeZone: null,
+          accessRole: 'owner',
+          dataOwner: null,
+          selected: true,
+          hidden: false
         }
       ],
       [
@@ -172,6 +186,88 @@ describe('buildGoogleCalendarPresentation', () => {
     )
 
     expect(presentation.events).toEqual([])
+  })
+
+  test('puts editable shared calendars under my calendars and read-only calendars under other calendars', () => {
+    const presentation = buildGoogleCalendarPresentation(
+      [
+        {
+          id: 'primary',
+          summary: 'Work',
+          summaryOverride: null,
+          description: null,
+          primary: true,
+          backgroundColor: null,
+          foregroundColor: null,
+          timeZone: 'Asia/Kuala_Lumpur',
+          accessRole: 'owner',
+          dataOwner: null,
+          selected: true,
+          hidden: false
+        },
+        {
+          id: 'shared-calendar@example.test',
+          summary: 'shared-calendar@example.test',
+          summaryOverride: 'Kai Tan',
+          description: 'Shared calendar',
+          primary: false,
+          backgroundColor: null,
+          foregroundColor: null,
+          timeZone: 'Asia/Kuala_Lumpur',
+          accessRole: 'writer',
+          dataOwner: 'shared-calendar@example.test',
+          selected: true,
+          hidden: false
+        },
+        {
+          id: 'readonly-calendar@example.test',
+          summary: 'readonly-calendar@example.test',
+          summaryOverride: 'Read Only',
+          description: 'Read-only calendar',
+          primary: false,
+          backgroundColor: null,
+          foregroundColor: null,
+          timeZone: 'Asia/Kuala_Lumpur',
+          accessRole: 'reader',
+          dataOwner: 'readonly-calendar@example.test',
+          selected: true,
+          hidden: false
+        }
+      ],
+      []
+    )
+
+    expect(presentation.calendars).toEqual([
+      { id: 'primary', name: 'Work', color: 'violet', group: 'my' },
+      { id: 'shared-calendar@example.test', name: 'Kai Tan', color: 'blue', group: 'my' },
+      { id: 'readonly-calendar@example.test', name: 'Read Only', color: 'orange', group: 'other' }
+    ])
+    expect(partitionRendererCalendars(presentation.calendars)).toEqual({
+      myCalendars: [
+        { id: 'primary', name: 'Work', color: 'violet', group: 'my' },
+        { id: 'shared-calendar@example.test', name: 'Kai Tan', color: 'blue', group: 'my' }
+      ],
+      otherCalendars: [
+        {
+          id: 'readonly-calendar@example.test',
+          name: 'Read Only',
+          color: 'orange',
+          group: 'other'
+        }
+      ]
+    })
+  })
+
+  test('treats legacy calendars without a group as my calendars until they resync', () => {
+    const legacyCalendars = [
+      { id: 'primary', name: 'Work', color: 'violet' },
+      { id: 'team', name: 'Team', color: 'green' }
+    ] as unknown as RendererCalendar[]
+
+    expect(partitionRendererCalendars(legacyCalendars)).toEqual({
+      myCalendars: legacyCalendars,
+      otherCalendars: []
+    })
   })
 })
 

@@ -1,4 +1,8 @@
-import type { UpdateGoogleCalendarEventInput } from '../../../main/googleCalendar/types'
+import type {
+  DeleteGoogleCalendarEventInput,
+  MoveGoogleCalendarEventInput,
+  UpdateGoogleCalendarEventInput
+} from '../../../main/googleCalendar/types'
 import type { CalendarEvent, GoogleEventSource } from '../data/events'
 
 type GoogleBackedCalendarEvent = CalendarEvent & {
@@ -18,10 +22,61 @@ export function buildGoogleCalendarUpdateFromRendererEvent(
     return null
   }
 
+  if (!event.allDay && (!event.startTime || !event.endTime)) {
+    return null
+  }
+
+  return buildGoogleCalendarSavePlan(event, event)?.update ?? null
+}
+
+export function buildGoogleCalendarSavePlan(
+  previousEvent: CalendarEvent,
+  updatedEvent: CalendarEvent
+): {
+  update: UpdateGoogleCalendarEventInput
+  move: MoveGoogleCalendarEventInput | null
+} | null {
+  if (!isGoogleBackedCalendarEvent(previousEvent) || !isGoogleBackedCalendarEvent(updatedEvent)) {
+    return null
+  }
+
+  const update = buildUpdatePayload(previousEvent.source, updatedEvent)
+
+  return {
+    update,
+    move:
+      previousEvent.source.calendarId === updatedEvent.source.calendarId
+        ? null
+        : {
+            calendarId: previousEvent.source.calendarId,
+            eventId: previousEvent.source.eventId,
+            destinationCalendarId: updatedEvent.source.calendarId
+          }
+  }
+}
+
+export function buildGoogleCalendarDeleteFromRendererEvent(
+  event: CalendarEvent
+): DeleteGoogleCalendarEventInput | null {
+  if (!isGoogleBackedCalendarEvent(event)) {
+    return null
+  }
+
+  return {
+    calendarId: event.source.calendarId,
+    eventId: event.source.eventId
+  }
+}
+
+function buildUpdatePayload(
+  source: GoogleEventSource,
+  event: CalendarEvent
+): UpdateGoogleCalendarEventInput {
   if (event.allDay) {
     return {
-      calendarId: event.source.calendarId,
-      eventId: event.source.eventId,
+      calendarId: source.calendarId,
+      eventId: source.eventId,
+      summary: event.title.trim(),
       start: {
         dateTime: null,
         date: event.date,
@@ -36,21 +91,22 @@ export function buildGoogleCalendarUpdateFromRendererEvent(
   }
 
   if (!event.startTime || !event.endTime) {
-    return null
+    throw new Error('Timed Google Calendar events require a start and end time')
   }
 
   return {
-    calendarId: event.source.calendarId,
-    eventId: event.source.eventId,
+    calendarId: source.calendarId,
+    eventId: source.eventId,
+    summary: event.title.trim(),
     start: {
       dateTime: `${event.date}T${event.startTime}:00.000`,
       date: null,
-      timeZone: event.source.timeZone
+      timeZone: source.timeZone
     },
     end: {
       dateTime: `${event.date}T${event.endTime}:00.000`,
       date: null,
-      timeZone: event.source.timeZone
+      timeZone: source.timeZone
     }
   }
 }

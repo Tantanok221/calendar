@@ -5,8 +5,10 @@ import { app, safeStorage, shell } from 'electron'
 import { GOOGLE_CALENDAR_CALLBACK_PATH, readGoogleCalendarConfig } from './config'
 import {
   createGoogleCalendarEvent,
+  deleteGoogleCalendarEvent,
   fetchGoogleCalendarEvents,
   fetchGoogleCalendars,
+  moveGoogleCalendarEvent,
   updateGoogleCalendarEvent
 } from './api'
 import {
@@ -19,11 +21,13 @@ import {
 import { FileGoogleTokenStore } from './storage'
 import type {
   CreateGoogleCalendarEventInput,
+  DeleteGoogleCalendarEventInput,
   GoogleCalendarConnectionStatus,
   GoogleCalendarEvent,
   GoogleCalendarSummary,
   GoogleTokenSet,
   ListGoogleCalendarEventsInput,
+  MoveGoogleCalendarEventInput,
   UpdateGoogleCalendarEventInput
 } from './types'
 
@@ -245,6 +249,38 @@ export class GoogleCalendarService {
     const accessToken = await this.getAccessToken(config.clientId, config.clientSecret, config.tokenUrl)
 
     return updateGoogleCalendarEvent({
+      ...input,
+      accessToken,
+      apiBaseUrl: config.apiBaseUrl
+    })
+  }
+
+  async moveEvent(input: MoveGoogleCalendarEventInput): Promise<GoogleCalendarEvent> {
+    const config = readGoogleCalendarConfig(process.env)
+
+    if (!config) {
+      throw new Error('GOOGLE_CALENDAR_CLIENT_ID is not configured')
+    }
+
+    const accessToken = await this.getAccessToken(config.clientId, config.clientSecret, config.tokenUrl)
+
+    return moveGoogleCalendarEvent({
+      ...input,
+      accessToken,
+      apiBaseUrl: config.apiBaseUrl
+    })
+  }
+
+  async deleteEvent(input: DeleteGoogleCalendarEventInput): Promise<void> {
+    const config = readGoogleCalendarConfig(process.env)
+
+    if (!config) {
+      throw new Error('GOOGLE_CALENDAR_CLIENT_ID is not configured')
+    }
+
+    const accessToken = await this.getAccessToken(config.clientId, config.clientSecret, config.tokenUrl)
+
+    return deleteGoogleCalendarEvent({
       ...input,
       accessToken,
       apiBaseUrl: config.apiBaseUrl

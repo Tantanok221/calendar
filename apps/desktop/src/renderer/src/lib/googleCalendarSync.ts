@@ -5,10 +5,13 @@ import type {
 import { CALENDARS } from '../data/events'
 import type { CalendarEvent, EventColor } from '../data/events'
 
+export type RendererCalendarGroup = 'my' | 'other'
+
 export interface RendererCalendar {
   id: string
   name: string
   color: EventColor
+  group: RendererCalendarGroup
 }
 
 interface GoogleCalendarPresentation {
@@ -24,8 +27,9 @@ export function buildGoogleCalendarPresentation(
 ): GoogleCalendarPresentation {
   const rendererCalendars = calendars.map((calendar, index) => ({
     id: calendar.id,
-    name: calendar.summary || 'Google Calendar',
-    color: pickGoogleCalendarColor(calendar, index)
+    name: calendar.summaryOverride || calendar.summary || 'Google Calendar',
+    color: pickGoogleCalendarColor(calendar, index),
+    group: classifyRendererCalendarGroup(calendar)
   }))
   const calendarById = new Map(rendererCalendars.map((calendar) => [calendar.id, calendar]))
 
@@ -34,6 +38,16 @@ export function buildGoogleCalendarPresentation(
   return {
     calendars: rendererCalendars,
     events: rendererEvents
+  }
+}
+
+export function partitionRendererCalendars(calendars: RendererCalendar[]): {
+  myCalendars: RendererCalendar[]
+  otherCalendars: RendererCalendar[]
+} {
+  return {
+    myCalendars: calendars.filter((calendar) => calendar.group !== 'other'),
+    otherCalendars: calendars.filter((calendar) => calendar.group === 'other')
   }
 }
 
@@ -66,7 +80,8 @@ function mapGoogleEventToRendererEvents(
   const fallbackCalendar = calendarById.get(event.calendarId) ?? {
     id: event.calendarId,
     name: 'Google Calendar',
-    color: 'violet' as EventColor
+    color: 'violet' as EventColor,
+    group: 'other' as const
   }
 
   if (event.allDay && event.start.date && event.end.date) {
@@ -148,6 +163,18 @@ function pickGoogleCalendarColor(calendar: GoogleCalendarSummary, index: number)
   return GOOGLE_EVENT_COLORS[(index + 1) % GOOGLE_EVENT_COLORS.length] ?? 'violet'
 }
 
+function classifyRendererCalendarGroup(calendar: GoogleCalendarSummary): RendererCalendarGroup {
+  if (
+    calendar.primary ||
+    calendar.accessRole === 'owner' ||
+    calendar.accessRole === 'writer'
+  ) {
+    return 'my'
+  }
+
+  return 'other'
+}
+
 function parseDateOnly(value: string): Date | null {
   const [year, month, day] = value.split('-').map(Number)
 
@@ -169,5 +196,6 @@ function formatTime(date: Date): string {
 export const DEFAULT_RENDERER_CALENDARS: RendererCalendar[] = CALENDARS.map((calendar, index) => ({
   id: `default:${index}`,
   name: calendar.name,
-  color: calendar.color
+  color: calendar.color,
+  group: 'my'
 }))
