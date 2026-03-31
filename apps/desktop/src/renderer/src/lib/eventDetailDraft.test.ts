@@ -3,6 +3,7 @@ import { buildUpdatedEventFromDetailDraft, type EventDetailDraft } from './event
 
 const BASE_DRAFT: EventDetailDraft = {
   title: 'Rescheduled standup',
+  location: 'Boardroom 2',
   selectedDate: new Date(2026, 3, 1),
   allDay: false,
   startTime: '1:00 PM',
@@ -19,6 +20,7 @@ describe('buildUpdatedEventFromDetailDraft', () => {
         {
           id: 'google:primary:evt-1',
           title: 'Standup',
+          location: 'Boardroom 1',
           date: '2026-03-30',
           startTime: '09:00',
           endTime: '09:30',
@@ -37,6 +39,7 @@ describe('buildUpdatedEventFromDetailDraft', () => {
     ).toEqual({
       id: 'google:primary:evt-1',
       title: 'Rescheduled standup',
+      location: 'Boardroom 2',
       date: '2026-04-01',
       startTime: '13:00',
       endTime: '14:00',
@@ -58,6 +61,7 @@ describe('buildUpdatedEventFromDetailDraft', () => {
         {
           id: 'local:1',
           title: 'Offsite',
+          location: 'Old office',
           date: '2026-03-30',
           startTime: '10:00',
           endTime: '11:00',
@@ -73,6 +77,7 @@ describe('buildUpdatedEventFromDetailDraft', () => {
     ).toEqual({
       id: 'local:1',
       title: 'Rescheduled standup',
+      location: 'Boardroom 2',
       date: '2026-04-01',
       startTime: undefined,
       endTime: undefined,

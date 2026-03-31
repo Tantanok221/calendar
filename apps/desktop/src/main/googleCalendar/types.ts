@@ -66,6 +66,7 @@ export interface UpdateGoogleCalendarEventInput {
   calendarId: string
   eventId: string
   summary?: string
+  location?: string | null
   start: GoogleCalendarEventDateTime
   end: GoogleCalendarEventDateTime
 }
@@ -84,6 +85,7 @@ export interface DeleteGoogleCalendarEventInput {
 export interface CreateGoogleCalendarEventInput {
   calendarId: string
   summary: string
+  location?: string
   start: GoogleCalendarEventDateTime
   end: GoogleCalendarEventDateTime
   recurrence?: string[]

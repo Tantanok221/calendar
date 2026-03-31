@@ -103,6 +103,7 @@ function mapGoogleEventToRendererEvents(
     {
       id: `google:${event.calendarId}:${event.id}`,
       title: event.title || 'Untitled',
+      ...(event.location ? { location: event.location } : {}),
       date: formatDate(start),
       startTime: formatTime(start),
       endTime: formatTime(end),
@@ -136,6 +137,7 @@ function expandAllDayGoogleEvent(
     expandedEvents.push({
       id: `google:${event.calendarId}:${event.id}:${index}`,
       title: event.title || 'Untitled',
+      ...(event.location ? { location: event.location } : {}),
       date: formatDate(cursor),
       allDay: true,
       color: calendar.color,

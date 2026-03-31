@@ -6,6 +6,7 @@ export type RepeatEndType = 'date' | 'count'
 
 export interface CreateCalendarEventDraft {
   title: string
+  location: string
   selectedDate: Date
   allDay: boolean
   startTime: string
@@ -27,6 +28,7 @@ export function buildGoogleCalendarCreateInput(
   timeZone: string
 ): CreateGoogleCalendarEventInput {
   const summary = draft.title.trim()
+  const location = normalizeOptionalText(draft.location)
 
   if (!summary) {
     throw new Error('Event title is required')
@@ -36,6 +38,7 @@ export function buildGoogleCalendarCreateInput(
     return {
       calendarId: draft.calendarId,
       summary,
+      ...(location ? { location } : {}),
       start: {
         dateTime: null,
         date: formatDate(draft.selectedDate),
@@ -60,6 +63,7 @@ export function buildGoogleCalendarCreateInput(
   return {
     calendarId: draft.calendarId,
     summary,
+    ...(location ? { location } : {}),
     start: {
       dateTime: `${formatDate(draft.selectedDate)}T${startTime}:00.000`,
       date: null,
@@ -76,6 +80,7 @@ export function buildGoogleCalendarCreateInput(
 
 export function buildLocalEventsFromDraft(draft: CreateCalendarEventDraft): CalendarEvent[] {
   const title = draft.title.trim()
+  const location = normalizeOptionalText(draft.location)
 
   if (!title) {
     throw new Error('Event title is required')
@@ -94,6 +99,7 @@ export function buildLocalEventsFromDraft(draft: CreateCalendarEventDraft): Cale
   return occurrenceDates.map((date, index) => ({
     id: `local:${idSeed}:${index}`,
     title,
+    ...(location ? { location } : {}),
     date: formatDate(date),
     startTime,
     endTime,
@@ -178,6 +184,11 @@ function to24HourTime(value: string): string {
     meridiem === 'AM' ? rawHour % 12 : rawHour % 12 === rawHour ? (rawHour % 12) + 12 : rawHour
 
   return `${String(hours).padStart(2, '0')}:${String(rawMinute).padStart(2, '0')}`
+}
+
+function normalizeOptionalText(value: string): string | undefined {
+  const trimmed = value.trim()
+  return trimmed ? trimmed : undefined
 }
 
 function toMinutes(value: string): number {

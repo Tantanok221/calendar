@@ -12,6 +12,7 @@ describe('isGoogleBackedCalendarEvent', () => {
       isGoogleBackedCalendarEvent({
         id: 'google:primary:evt-1',
         title: 'Standup',
+        location: 'War room',
         date: '2026-03-30',
         startTime: '09:00',
         endTime: '09:30',
@@ -48,6 +49,7 @@ describe('buildGoogleCalendarUpdateFromRendererEvent', () => {
       buildGoogleCalendarUpdateFromRendererEvent({
         id: 'google:primary:evt-1',
         title: 'Standup',
+        location: 'War room',
         date: '2026-03-30',
         startTime: '09:00',
         endTime: '09:30',
@@ -65,6 +67,7 @@ describe('buildGoogleCalendarUpdateFromRendererEvent', () => {
       calendarId: 'primary',
       eventId: 'evt-1',
       summary: 'Standup',
+      location: 'War room',
       start: {
         dateTime: '2026-03-30T09:00:00.000',
         date: null,
@@ -100,11 +103,12 @@ describe('buildGoogleCalendarUpdateFromRendererEvent', () => {
   test('supports single-day all-day events', () => {
     expect(
       buildGoogleCalendarUpdateFromRendererEvent({
-        id: 'google:primary:evt-2',
-        title: 'Offsite',
-        date: '2026-03-30',
-        allDay: true,
-        color: 'violet',
+          id: 'google:primary:evt-2',
+          title: 'Offsite',
+          location: 'HQ',
+          date: '2026-03-30',
+          allDay: true,
+          color: 'violet',
         calendar: 'Work',
         source: {
           provider: 'google',
@@ -117,6 +121,7 @@ describe('buildGoogleCalendarUpdateFromRendererEvent', () => {
       calendarId: 'primary',
       eventId: 'evt-2',
       summary: 'Offsite',
+      location: 'HQ',
       start: {
         dateTime: null,
         date: '2026-03-30',
@@ -136,6 +141,7 @@ describe('buildGoogleCalendarUpdateFromRendererEvent', () => {
         {
           id: 'google:primary:evt-1',
           title: 'Standup',
+          location: 'Room A',
           date: '2026-03-30',
           startTime: '09:00',
           endTime: '09:30',
@@ -152,6 +158,7 @@ describe('buildGoogleCalendarUpdateFromRendererEvent', () => {
         {
           id: 'google:primary:evt-1',
           title: 'Standup moved',
+          location: 'Room B',
           date: '2026-03-31',
           startTime: '10:00',
           endTime: '10:30',
@@ -171,6 +178,7 @@ describe('buildGoogleCalendarUpdateFromRendererEvent', () => {
         calendarId: 'primary',
         eventId: 'evt-1',
         summary: 'Standup moved',
+        location: 'Room B',
         start: {
           dateTime: '2026-03-31T10:00:00.000',
           date: null,

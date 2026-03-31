@@ -77,6 +77,7 @@ function buildUpdatePayload(
       calendarId: source.calendarId,
       eventId: source.eventId,
       summary: event.title.trim(),
+      location: normalizeLocation(event.location),
       start: {
         dateTime: null,
         date: event.date,
@@ -98,6 +99,7 @@ function buildUpdatePayload(
     calendarId: source.calendarId,
     eventId: source.eventId,
     summary: event.title.trim(),
+    location: normalizeLocation(event.location),
     start: {
       dateTime: `${event.date}T${event.startTime}:00.000`,
       date: null,
@@ -117,4 +119,9 @@ function nextDate(date: string): string {
   next.setDate(next.getDate() + 1)
 
   return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`
+}
+
+function normalizeLocation(value: string | undefined): string | null {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : null
 }

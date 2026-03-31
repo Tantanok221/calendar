@@ -35,6 +35,7 @@ import { buildTimedEventLayout } from '../lib/timedEventLayout'
 import type { TimedEventLayout } from '../lib/timedEventLayout'
 import { getDayViewInitialScrollTop } from '../lib/today'
 import { isCalendarEventEditable } from '../lib/calendarPermissions'
+import { getEventPrimaryLabel, getEventSecondaryLabel } from '../lib/eventLocationDisplay'
 import EventDetailPopover from './EventDetailPopover'
 
 const HOURS = buildCalendarHours(START_HOUR, END_HOUR)
@@ -101,6 +102,8 @@ function TimedEventCard({
   const top = topPx(event.startTime!)
   const height = heightPx(event.startTime!, event.endTime!)
   const short = height < 44
+  const primaryLabel = short ? getEventPrimaryLabel(event) : event.title
+  const secondaryLabel = getEventSecondaryLabel(event)
   const left = `calc(${(layout.columnIndex / layout.columnCount) * 100}% + 4px)`
   const right = `calc(${((layout.columnCount - layout.columnIndex - 1) / layout.columnCount) * 100}% + 4px)`
 
@@ -153,14 +156,14 @@ function TimedEventCard({
         </>
       )}
       <div className="relative z-0 pointer-events-none">
-        <p className="text-xs font-semibold leading-snug truncate">{event.title}</p>
+        <p className="text-xs font-semibold leading-snug truncate">{primaryLabel}</p>
         {!short && (
           <p className="text-[11px] mt-0.5 opacity-70 truncate">
             {event.startTime} – {event.endTime}
           </p>
         )}
-        {!short && event.calendar && (
-          <p className="text-[10px] mt-0.5 opacity-50 truncate">{event.calendar}</p>
+        {!short && secondaryLabel && (
+          <p className="text-[10px] mt-0.5 opacity-50 truncate">{secondaryLabel}</p>
         )}
       </div>
     </motion.div>
@@ -246,7 +249,7 @@ function AllDayEventPill({
         touchAction: 'none'
       }}
     >
-      {event.title}
+      {getEventPrimaryLabel(event)}
     </motion.div>
   )
 }

@@ -68,6 +68,7 @@ describe('normalizeGoogleCalendarEvent', () => {
         id: 'abc123',
         status: 'confirmed',
         summary: 'Team Standup',
+        location: 'Room 5',
         htmlLink: 'https://calendar.google.com/calendar/event?eid=abc123',
         start: {
           dateTime: '2026-03-30T09:00:00Z',
@@ -83,6 +84,7 @@ describe('normalizeGoogleCalendarEvent', () => {
       calendarId: 'primary',
       status: 'confirmed',
       title: 'Team Standup',
+      location: 'Room 5',
       htmlLink: 'https://calendar.google.com/calendar/event?eid=abc123',
       allDay: false,
       start: {
@@ -143,6 +145,7 @@ describe('updateGoogleCalendarEvent', () => {
       calendarId: 'primary',
       eventId: 'evt-123',
       summary: 'Standup',
+      location: 'Boardroom',
       start: {
         dateTime: '2026-03-30T02:00:00.000Z',
         date: null,
@@ -162,6 +165,7 @@ describe('updateGoogleCalendarEvent', () => {
             id: 'evt-123',
             status: 'confirmed',
             summary: 'Standup',
+            location: 'Boardroom',
             start: {
               dateTime: '2026-03-30T02:00:00.000Z',
               timeZone: 'Asia/Kuala_Lumpur'
@@ -186,6 +190,7 @@ describe('updateGoogleCalendarEvent', () => {
     )
     expect(JSON.parse(requestedBody)).toEqual({
       summary: 'Standup',
+      location: 'Boardroom',
       start: {
         dateTime: '2026-03-30T02:00:00.000Z',
         timeZone: 'Asia/Kuala_Lumpur'
@@ -200,6 +205,7 @@ describe('updateGoogleCalendarEvent', () => {
       calendarId: 'primary',
       status: 'confirmed',
       title: 'Standup',
+      location: 'Boardroom',
       htmlLink: null,
       allDay: false,
       start: {
@@ -315,6 +321,7 @@ describe('createGoogleCalendarEvent', () => {
       apiBaseUrl: 'https://www.googleapis.com/calendar/v3',
       calendarId: 'primary',
       summary: 'Offsite',
+      location: 'Offsite Lodge',
       start: {
         dateTime: null,
         date: '2026-03-30',
@@ -335,6 +342,7 @@ describe('createGoogleCalendarEvent', () => {
             id: 'evt-234',
             status: 'confirmed',
             summary: 'Offsite',
+            location: 'Offsite Lodge',
             start: {
               date: '2026-03-30'
             },
@@ -355,6 +363,7 @@ describe('createGoogleCalendarEvent', () => {
     expect(requestedUrl).toBe('https://www.googleapis.com/calendar/v3/calendars/primary/events')
     expect(JSON.parse(requestedBody)).toEqual({
       summary: 'Offsite',
+      location: 'Offsite Lodge',
       start: {
         date: '2026-03-30'
       },
@@ -368,6 +377,7 @@ describe('createGoogleCalendarEvent', () => {
       calendarId: 'primary',
       status: 'confirmed',
       title: 'Offsite',
+      location: 'Offsite Lodge',
       htmlLink: null,
       allDay: true,
       start: {

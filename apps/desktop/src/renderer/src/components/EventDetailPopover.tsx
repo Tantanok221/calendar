@@ -10,7 +10,8 @@ import {
   CaretRight,
   Repeat,
   Trash,
-  Warning
+  Warning,
+  MapPin
 } from '@phosphor-icons/react'
 import { cn } from '../lib/utils'
 import { getClosestTimeSuggestion, getTimeSuggestions } from '../lib/timeSuggestions'
@@ -377,6 +378,7 @@ export default function EventDetailPopover({
   const DOW_FULL = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
   const [title, setTitle] = useState(event.title)
+  const [location, setLocation] = useState(event.location ?? '')
   const [selectedDate, setSelectedDate] = useState(() => parseDateStr(event.date))
   const [allDay, setAllDay] = useState(event.allDay ?? false)
   const [startTime, setStartTime] = useState(event.startTime ? to12h(event.startTime) : '10:00 AM')
@@ -424,6 +426,7 @@ export default function EventDetailPopover({
       await onSave(
         buildUpdatedEventFromDetailDraft(event, {
           title,
+          location,
           selectedDate,
           allDay,
           startTime,
@@ -560,6 +563,18 @@ export default function EventDetailPopover({
               placeholder="Event title"
               onKeyDown={(e) => e.key === 'Escape' && onClose()}
               className="w-full bg-transparent text-[15px] font-semibold outline-none"
+              style={{ color: 'var(--text)' }}
+            />
+          </div>
+
+          <div className="flex items-center gap-3 px-4 pb-3">
+            <MapPin size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+            <input
+              disabled={isBusy}
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Add location"
+              className="w-full bg-transparent text-[13px] outline-none"
               style={{ color: 'var(--text)' }}
             />
           </div>

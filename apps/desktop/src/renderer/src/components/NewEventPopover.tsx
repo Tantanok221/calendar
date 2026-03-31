@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as Popover from '@radix-ui/react-popover'
-import { X, CalendarBlank, Clock, CaretDown, CaretLeft, CaretRight, Repeat } from '@phosphor-icons/react'
+import {
+  X,
+  CalendarBlank,
+  Clock,
+  CaretDown,
+  CaretLeft,
+  CaretRight,
+  Repeat,
+  MapPin
+} from '@phosphor-icons/react'
 import { cn } from '../lib/utils'
 import { getClosestTimeSuggestion, getTimeSuggestions } from '../lib/timeSuggestions'
 import { EVENT_COLORS, isSameDay } from '../data/events'
@@ -381,6 +390,7 @@ export default function NewEventPopover({
 }: NewEventPopoverProps): React.JSX.Element {
   const writableCalendars = getWritableCalendars(calendars)
   const [title, setTitle] = useState('')
+  const [location, setLocation] = useState('')
   const [selectedDate, setSelectedDate] = useState(() => initialValues?.selectedDate ?? getToday())
   const [allDay, setAllDay] = useState(() => initialValues?.allDay ?? false)
   const [startTime, setStartTime] = useState(() => initialValues?.startTime ?? '10:00 AM')
@@ -427,6 +437,7 @@ export default function NewEventPopover({
     try {
       await onCreateEvent({
         title,
+        location,
         selectedDate,
         allDay,
         startTime,
@@ -545,6 +556,18 @@ export default function NewEventPopover({
               placeholder="Event title"
               onKeyDown={(e) => e.key === 'Escape' && onClose()}
               className="w-full bg-transparent text-[15px] font-semibold outline-none"
+              style={{ color: 'var(--text)' }}
+            />
+          </div>
+
+          <div className="flex items-center gap-3 px-4 pb-3">
+            <MapPin size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+            <input
+              disabled={isSubmitting}
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Add location"
+              className="w-full bg-transparent text-[13px] outline-none"
               style={{ color: 'var(--text)' }}
             />
           </div>

@@ -4,6 +4,7 @@ import { getClosestTimeSuggestion } from './timeSuggestions'
 
 export interface EventDetailDraft {
   title: string
+  location: string
   selectedDate: Date
   allDay: boolean
   startTime: string
@@ -18,6 +19,7 @@ export function buildUpdatedEventFromDetailDraft(
   draft: EventDetailDraft
 ): CalendarEvent {
   const title = draft.title.trim()
+  const location = normalizeOptionalText(draft.location)
 
   if (!title) {
     throw new Error('Event title is required')
@@ -26,6 +28,7 @@ export function buildUpdatedEventFromDetailDraft(
   const nextEvent: CalendarEvent = {
     ...event,
     title,
+    location,
     date: formatDate(draft.selectedDate),
     allDay: draft.allDay,
     color: draft.color,
@@ -80,4 +83,9 @@ function toMinutes(value: string): number {
 
 function formatDate(value: Date): string {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
+}
+
+function normalizeOptionalText(value: string): string | undefined {
+  const trimmed = value.trim()
+  return trimmed ? trimmed : undefined
 }
