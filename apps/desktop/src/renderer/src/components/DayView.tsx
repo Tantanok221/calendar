@@ -30,6 +30,7 @@ import {
 } from '../lib/calendarDrag'
 import { buildCalendarHours, formatCalendarHour } from '../lib/calendarHours'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
+import { getAllDayEventPillMotion } from '../lib/eventMotion'
 import EventDetailPopover from './EventDetailPopover'
 
 const HOURS = buildCalendarHours(START_HOUR, END_HOUR)
@@ -187,24 +188,27 @@ function AllDayEventPill({
   selected,
   dragging,
   onClick,
-  elementRef
+  elementRef,
+  animateOnMount = true
 }: {
   event: CalendarEvent
   selected: boolean
   dragging: boolean
   onClick: (e: React.MouseEvent, ev: CalendarEvent) => void
   elementRef?: (element: Element | null) => void
+  animateOnMount?: boolean
 }): React.JSX.Element {
   const color = EVENT_COLORS[event.color]
+  const pillMotion = getAllDayEventPillMotion({ dragging, animateOnMount })
 
   return (
     <motion.div
       ref={elementRef}
       className="px-2 py-0.5 rounded text-[11px] font-medium"
-      initial={{ opacity: 0, x: -4 }}
-      animate={{ opacity: dragging ? 0.28 : 1, x: 0 }}
-      exit={{ opacity: 0, x: -4 }}
-      transition={{ duration: 0.15, ease: 'easeOut' }}
+      initial={pillMotion.initial}
+      animate={pillMotion.animate}
+      exit={pillMotion.exit}
+      transition={pillMotion.transition}
       onClick={(e) => {
         e.stopPropagation()
         onClick(e, event)
@@ -227,11 +231,13 @@ function AllDayEventPill({
 function DraggableAllDayEventPill({
   event,
   selected,
-  onClick
+  onClick,
+  animateOnMount = true
 }: {
   event: CalendarEvent
   selected: boolean
   onClick: (e: React.MouseEvent, ev: CalendarEvent) => void
+  animateOnMount?: boolean
 }): React.JSX.Element {
   const { ref, isDragging } = useDraggable({
     id: `event:${event.id}`,
@@ -245,6 +251,7 @@ function DraggableAllDayEventPill({
       dragging={isDragging}
       onClick={onClick}
       elementRef={ref}
+      animateOnMount={animateOnMount}
     />
   )
 }
@@ -647,6 +654,7 @@ export default function DayView({
                   event={event}
                   selected={selectedEventId === event.id}
                   onClick={handleEventClick}
+                  animateOnMount={false}
                 />
               ))}
             </AnimatePresence>
