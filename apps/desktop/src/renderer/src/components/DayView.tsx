@@ -31,6 +31,8 @@ import {
 import { buildCalendarHours, formatCalendarHour } from '../lib/calendarHours'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
 import { getAllDayEventPillMotion } from '../lib/eventMotion'
+import { buildTimedEventLayout } from '../lib/timedEventLayout'
+import type { TimedEventLayout } from '../lib/timedEventLayout'
 import { getDayViewInitialScrollTop } from '../lib/today'
 import { isCalendarEventEditable } from '../lib/calendarPermissions'
 import EventDetailPopover from './EventDetailPopover'
@@ -76,6 +78,7 @@ function dateFromDateStr(dateStr: string): Date {
 
 function TimedEventCard({
   event,
+  layout,
   editable,
   selected,
   dragging,
@@ -85,6 +88,7 @@ function TimedEventCard({
   onResizeStart
 }: {
   event: CalendarEvent
+  layout: TimedEventLayout
   editable: boolean
   selected: boolean
   dragging: boolean
@@ -97,6 +101,8 @@ function TimedEventCard({
   const top = topPx(event.startTime!)
   const height = heightPx(event.startTime!, event.endTime!)
   const short = height < 44
+  const left = `calc(${(layout.columnIndex / layout.columnCount) * 100}% + 4px)`
+  const right = `calc(${((layout.columnCount - layout.columnIndex - 1) / layout.columnCount) * 100}% + 4px)`
 
   return (
     <motion.div
@@ -115,9 +121,9 @@ function TimedEventCard({
         background: selected ? color.bg.replace('0.13', '0.22') : color.bg,
         borderLeftColor: color.dot,
         color: color.text,
+        left,
+        right,
         cursor: editable ? 'pointer' : 'default',
-        left: 8,
-        right: 8,
         outline: selected ? `1px solid ${color.dot}` : 'none',
         outlineOffset: -1,
         zIndex: dragging || resizing ? 20 : selected ? 12 : 2,
@@ -147,14 +153,14 @@ function TimedEventCard({
         </>
       )}
       <div className="relative z-0 pointer-events-none">
-        <p className="text-xs font-semibold leading-snug">{event.title}</p>
+        <p className="text-xs font-semibold leading-snug truncate">{event.title}</p>
         {!short && (
-          <p className="text-[11px] mt-0.5 opacity-70">
+          <p className="text-[11px] mt-0.5 opacity-70 truncate">
             {event.startTime} – {event.endTime}
           </p>
         )}
         {!short && event.calendar && (
-          <p className="text-[10px] mt-0.5 opacity-50">{event.calendar}</p>
+          <p className="text-[10px] mt-0.5 opacity-50 truncate">{event.calendar}</p>
         )}
       </div>
     </motion.div>
@@ -163,6 +169,7 @@ function TimedEventCard({
 
 function DraggableEventBlock({
   event,
+  layout,
   editable,
   selected,
   resizing,
@@ -170,6 +177,7 @@ function DraggableEventBlock({
   onResizeStart
 }: {
   event: CalendarEvent
+  layout: TimedEventLayout
   editable: boolean
   selected: boolean
   resizing: boolean
@@ -184,6 +192,7 @@ function DraggableEventBlock({
   return (
     <TimedEventCard
       event={event}
+      layout={layout}
       editable={editable}
       selected={selected}
       dragging={isDragging}
@@ -603,6 +612,10 @@ export default function DayView({
   const timedEvents = events
     .filter((event) => event.date === dayStr && !event.allDay && event.startTime && event.endTime)
     .sort((a, b) => timeToMinutes(a.startTime!) - timeToMinutes(b.startTime!))
+  const displayedTimedEvents = timedEvents.map((event) =>
+    timedResize?.eventId === event.id ? timedResize.previewEvent : event
+  )
+  const timedEventLayout = buildTimedEventLayout(displayedTimedEvents)
   const allDayEvents = events.filter((event) => event.date === dayStr && event.allDay)
   const draggedTimedEvent = draggedEventId
     ? events.find(
@@ -776,10 +789,11 @@ export default function DayView({
               )}
 
               <AnimatePresence>
-                {timedEvents.map((event) => (
+                {displayedTimedEvents.map((event) => (
                   <DraggableEventBlock
                     key={event.id}
-                    event={timedResize?.eventId === event.id ? timedResize.previewEvent : event}
+                    event={event}
+                    layout={timedEventLayout[event.id] ?? { columnIndex: 0, columnCount: 1 }}
                     editable={isCalendarEventEditable(event, calendars)}
                     selected={selectedEventId === event.id}
                     resizing={timedResize?.eventId === event.id}

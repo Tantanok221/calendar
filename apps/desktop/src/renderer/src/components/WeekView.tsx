@@ -31,6 +31,8 @@ import {
 } from '../lib/calendarDrag'
 import { buildCalendarHours, formatCalendarHour } from '../lib/calendarHours'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
+import { buildTimedEventLayout } from '../lib/timedEventLayout'
+import type { TimedEventLayout } from '../lib/timedEventLayout'
 import { isCalendarEventEditable } from '../lib/calendarPermissions'
 import EventDetailPopover from './EventDetailPopover'
 
@@ -76,6 +78,7 @@ function dateFromDateStr(dateStr: string): Date {
 
 function TimedEventCard({
   event,
+  layout,
   editable,
   selected,
   dragging,
@@ -85,6 +88,7 @@ function TimedEventCard({
   onResizeStart
 }: {
   event: CalendarEvent
+  layout: TimedEventLayout
   editable: boolean
   selected: boolean
   dragging: boolean
@@ -97,6 +101,8 @@ function TimedEventCard({
   const top = topPx(event.startTime!)
   const height = heightPx(event.startTime!, event.endTime!)
   const short = height < 36
+  const left = `calc(${(layout.columnIndex / layout.columnCount) * 100}% + 4px)`
+  const right = `calc(${((layout.columnCount - layout.columnIndex - 1) / layout.columnCount) * 100}% + 4px)`
 
   return (
     <motion.div
@@ -115,6 +121,8 @@ function TimedEventCard({
         background: selected ? color.bg.replace('0.13', '0.22') : color.bg,
         borderLeftColor: color.dot,
         color: color.text,
+        left,
+        right,
         cursor: editable ? 'pointer' : 'default',
         outline: selected ? `1px solid ${color.dot}` : 'none',
         outlineOffset: -1,
@@ -158,6 +166,7 @@ function TimedEventCard({
 
 function DraggableEventBlock({
   event,
+  layout,
   editable,
   selected,
   resizing,
@@ -165,6 +174,7 @@ function DraggableEventBlock({
   onResizeStart
 }: {
   event: CalendarEvent
+  layout: TimedEventLayout
   editable: boolean
   selected: boolean
   resizing: boolean
@@ -179,6 +189,7 @@ function DraggableEventBlock({
   return (
     <TimedEventCard
       event={event}
+      layout={layout}
       editable={editable}
       selected={selected}
       dragging={isDragging}
@@ -723,6 +734,10 @@ export default function WeekView({
 
             {days.map((day) => {
               const isToday = isSameDay(day, today)
+              const dayTimedEvents = timedEvents(day).map((event) =>
+                timedResize?.eventId === event.id ? timedResize.previewEvent : event
+              )
+              const dayTimedEventLayout = buildTimedEventLayout(dayTimedEvents)
               return (
                 <div
                   key={toDateStr(day)}
@@ -780,11 +795,18 @@ export default function WeekView({
                   )}
 
                   <AnimatePresence>
-                    {timedEvents(day).map((event) => (
+                    {dayTimedEvents.map((event) => (
                       <DraggableEventBlock
                         key={event.id}
-                        event={timedResize?.eventId === event.id ? timedResize.previewEvent : event}
+                        event={event}
+                        layout={
+                          dayTimedEventLayout[event.id] ?? { columnIndex: 0, columnCount: 1 }
+                        }
                         editable={isCalendarEventEditable(event, calendars)}
+                        event={event}
+                        layout={
+                          dayTimedEventLayout[event.id] ?? { columnIndex: 0, columnCount: 1 }
+                        }
                         selected={selectedEventId === event.id}
                         resizing={timedResize?.eventId === event.id}
                         onClick={handleEventClick}
