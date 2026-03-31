@@ -1,6 +1,8 @@
 import type { CalendarEvent } from '../data/events'
 import type { RendererCalendar } from './googleCalendarSync'
 
+export type CalendarEventInteractionMode = 'edit' | 'view'
+
 export function isRendererCalendarEditable(calendar: RendererCalendar): boolean {
   return calendar.group !== 'other'
 }
@@ -39,4 +41,11 @@ export function isCalendarEventEditable(
     calendars.find((candidate) => candidate.name === event.calendar)
 
   return calendar ? isRendererCalendarEditable(calendar) : true
+}
+
+export function getCalendarEventInteractionMode(
+  event: CalendarEvent,
+  calendars: RendererCalendar[]
+): CalendarEventInteractionMode {
+  return isCalendarEventEditable(event, calendars) ? 'edit' : 'view'
 }

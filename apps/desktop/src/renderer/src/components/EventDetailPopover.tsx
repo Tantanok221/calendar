@@ -17,7 +17,6 @@ import { cn } from '../lib/utils'
 import { getClosestTimeSuggestion, getTimeSuggestions } from '../lib/timeSuggestions'
 import { EVENT_COLORS, isSameDay } from '../data/events'
 import type { CalendarEvent } from '../data/events'
-import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
 import type { RepeatEndType } from '../lib/googleCalendarCreate'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
 import {
@@ -30,7 +29,6 @@ import { addDays, addMonths, getNextMonday, useToday } from '../lib/today'
 
 interface Props {
   event: CalendarEvent
-  anchor: PopoverAnchor
   calendars: RendererCalendar[]
   onSave: (event: CalendarEvent) => Promise<void> | void
   onDelete: (event: CalendarEvent) => Promise<void> | void

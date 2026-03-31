@@ -4,7 +4,7 @@ export interface PopoverAnchor {
 }
 
 export function computeAnchor(rect: DOMRect): PopoverAnchor {
-  const W = 228
+  const W = 260
   const GAP = 10
   const rightFits = window.innerWidth - rect.right >= W + GAP
   const left = rightFits ? rect.right + GAP : rect.left - W - GAP

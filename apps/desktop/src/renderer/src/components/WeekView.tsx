@@ -33,8 +33,12 @@ import { buildCalendarHours, formatCalendarHour } from '../lib/calendarHours'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
 import { buildTimedEventLayout } from '../lib/timedEventLayout'
 import type { TimedEventLayout } from '../lib/timedEventLayout'
-import { isCalendarEventEditable } from '../lib/calendarPermissions'
+import {
+  getCalendarEventInteractionMode,
+  isCalendarEventEditable
+} from '../lib/calendarPermissions'
 import { getEventPrimaryLabel, getEventSecondaryLabel } from '../lib/eventLocationDisplay'
+import EventInfoPopover from './EventInfoPopover'
 import EventDetailPopover from './EventDetailPopover'
 
 const HOURS = buildCalendarHours(START_HOUR, END_HOUR)
@@ -128,7 +132,7 @@ function TimedEventCard({
         color: color.text,
         left,
         right,
-        cursor: editable ? 'pointer' : 'default',
+        cursor: 'pointer',
         outline: selected ? `1px solid ${color.dot}` : 'none',
         outlineOffset: -1,
         zIndex: dragging || resizing ? 20 : selected ? 12 : 2,
@@ -241,7 +245,7 @@ function AllDayEventPill({
         color: color.text,
         outline: selected ? `1px solid ${color.dot}` : 'none',
         outlineOffset: -1,
-        cursor: editable ? (dragging ? 'grabbing' : 'grab') : 'default',
+        cursor: editable ? (dragging ? 'grabbing' : 'grab') : 'pointer',
         boxShadow: dragging ? '0 10px 24px rgba(0,0,0,0.22)' : 'none',
         touchAction: 'none'
       }}
@@ -384,19 +388,17 @@ export default function WeekView({
     pointerId: number
     previewEvent: CalendarEvent
   } | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
   const days = getWeekDays(currentDate)
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? null
 
   const clearSelection = (): void => {
     setSelectedEventId(null)
     setPopoverAnchor(null)
+    setShowEditModal(false)
   }
 
   const handleEventClick = (e: React.MouseEvent, event: CalendarEvent): void => {
-    if (!isCalendarEventEditable(event, calendars)) {
-      return
-    }
-
     if (Date.now() < suppressClickUntilRef.current) return
 
     if (selectedEventId === event.id) {
@@ -636,10 +638,23 @@ export default function WeekView({
           clearSelection()
         }}
       >
-        {selectedEvent && popoverAnchor && (
-          <EventDetailPopover
+        {selectedEvent && popoverAnchor && !showEditModal && (
+          <EventInfoPopover
             event={selectedEvent}
             anchor={popoverAnchor}
+            calendars={calendars}
+            editable={getCalendarEventInteractionMode(selectedEvent, calendars) === 'edit'}
+            onEdit={() => setShowEditModal(true)}
+            onDelete={async (ev) => {
+              await onEventDelete(ev)
+              clearSelection()
+            }}
+            onClose={() => clearSelection()}
+          />
+        )}
+        {selectedEvent && showEditModal && (
+          <EventDetailPopover
+            event={selectedEvent}
             calendars={calendars}
             onSave={onEventChange}
             onDelete={onEventDelete}
