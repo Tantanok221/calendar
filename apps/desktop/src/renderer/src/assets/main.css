@@ -30,6 +30,33 @@
   }
 }
 
+@keyframes scope-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+@keyframes scope-progress {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+@keyframes scope-card-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
 /* ── Radix UI / shadcn animations ──────────────────────── */
 @keyframes overlay-in {
   from {

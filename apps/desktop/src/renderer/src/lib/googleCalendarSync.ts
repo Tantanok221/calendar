@@ -1,7 +1,4 @@
-import type {
-  GoogleCalendarEvent,
-  GoogleCalendarSummary
-} from '../../../main/googleCalendar/types'
+import type { GoogleCalendarEvent, GoogleCalendarSummary } from '../../../main/googleCalendar/types'
 import { CALENDARS } from '../data/events'
 import type { CalendarEvent, EventColor } from '../data/events'
 
@@ -32,8 +29,11 @@ export function buildGoogleCalendarPresentation(
     group: classifyRendererCalendarGroup(calendar)
   }))
   const calendarById = new Map(rendererCalendars.map((calendar) => [calendar.id, calendar]))
+  const recurrenceBySeriesId = buildRecurrenceBySeriesId(events)
 
-  const rendererEvents = events.flatMap((event) => mapGoogleEventToRendererEvents(event, calendarById))
+  const rendererEvents = events.flatMap((event) =>
+    mapGoogleEventToRendererEvents(event, calendarById, recurrenceBySeriesId)
+  )
 
   return {
     calendars: rendererCalendars,
@@ -71,11 +71,18 @@ export function getGoogleCalendarSyncRange(currentDate: Date): {
 
 function mapGoogleEventToRendererEvents(
   event: GoogleCalendarEvent,
-  calendarById: Map<string, RendererCalendar>
+  calendarById: Map<string, RendererCalendar>,
+  recurrenceBySeriesId: Map<string, string[]>
 ): CalendarEvent[] {
   if (event.status === 'cancelled') {
     return []
   }
+
+  if (isRecurringSeriesMaster(event)) {
+    return []
+  }
+
+  const recurrence = resolveRecurrence(event, recurrenceBySeriesId)
 
   const fallbackCalendar = calendarById.get(event.calendarId) ?? {
     id: event.calendarId,
@@ -85,7 +92,7 @@ function mapGoogleEventToRendererEvents(
   }
 
   if (event.allDay && event.start.date && event.end.date) {
-    return expandAllDayGoogleEvent(event, fallbackCalendar)
+    return expandAllDayGoogleEvent(event, fallbackCalendar, recurrence)
   }
 
   if (!event.start.dateTime || !event.end.dateTime) {
@@ -113,7 +120,10 @@ function mapGoogleEventToRendererEvents(
       source: {
         provider: 'google',
         calendarId: event.calendarId,
-        eventId: event.id,
+        eventId: event.recurringEventId ?? event.id,
+        ...(event.recurringEventId ? { recurringEventId: event.recurringEventId } : {}),
+        ...(event.recurringEventId ? { instanceEventId: event.id } : {}),
+        ...(recurrence ? { recurrence } : {}),
         timeZone: event.start.timeZone ?? event.end.timeZone ?? null
       }
     }
@@ -122,7 +132,8 @@ function mapGoogleEventToRendererEvents(
 
 function expandAllDayGoogleEvent(
   event: GoogleCalendarEvent,
-  calendar: RendererCalendar
+  calendar: RendererCalendar,
+  recurrence: string[] | undefined
 ): CalendarEvent[] {
   const start = parseDateOnly(event.start.date!)
   const endExclusive = parseDateOnly(event.end.date!)
@@ -145,7 +156,10 @@ function expandAllDayGoogleEvent(
       source: {
         provider: 'google',
         calendarId: event.calendarId,
-        eventId: event.id,
+        eventId: event.recurringEventId ?? event.id,
+        ...(event.recurringEventId ? { recurringEventId: event.recurringEventId } : {}),
+        ...(event.recurringEventId ? { instanceEventId: event.id } : {}),
+        ...(recurrence ? { recurrence } : {}),
         timeZone: event.start.timeZone ?? event.end.timeZone ?? null
       }
     })
@@ -157,6 +171,41 @@ function expandAllDayGoogleEvent(
   return expandedEvents
 }
 
+function buildRecurrenceBySeriesId(events: GoogleCalendarEvent[]): Map<string, string[]> {
+  const recurrenceBySeriesId = new Map<string, string[]>()
+
+  for (const event of events) {
+    if (isRecurringSeriesMaster(event) && event.recurrence) {
+      recurrenceBySeriesId.set(getRecurringSeriesKey(event.calendarId, event.id), event.recurrence)
+    }
+  }
+
+  return recurrenceBySeriesId
+}
+
+function resolveRecurrence(
+  event: GoogleCalendarEvent,
+  recurrenceBySeriesId: Map<string, string[]>
+): string[] | undefined {
+  if (event.recurrence) {
+    return event.recurrence
+  }
+
+  if (!event.recurringEventId) {
+    return undefined
+  }
+
+  return recurrenceBySeriesId.get(getRecurringSeriesKey(event.calendarId, event.recurringEventId))
+}
+
+function isRecurringSeriesMaster(event: GoogleCalendarEvent): boolean {
+  return Boolean(event.recurrence && !event.recurringEventId)
+}
+
+function getRecurringSeriesKey(calendarId: string, eventId: string): string {
+  return `${calendarId}:${eventId}`
+}
+
 function pickGoogleCalendarColor(calendar: GoogleCalendarSummary, index: number): EventColor {
   if (calendar.primary) {
     return 'violet'
@@ -166,11 +215,7 @@ function pickGoogleCalendarColor(calendar: GoogleCalendarSummary, index: number)
 }
 
 function classifyRendererCalendarGroup(calendar: GoogleCalendarSummary): RendererCalendarGroup {
-  if (
-    calendar.primary ||
-    calendar.accessRole === 'owner' ||
-    calendar.accessRole === 'writer'
-  ) {
+  if (calendar.primary || calendar.accessRole === 'owner' || calendar.accessRole === 'writer') {
     return 'my'
   }
 

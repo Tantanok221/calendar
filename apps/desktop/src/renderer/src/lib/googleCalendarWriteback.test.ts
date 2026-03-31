@@ -3,6 +3,7 @@ import {
   buildGoogleCalendarDeleteFromRendererEvent,
   buildGoogleCalendarSavePlan,
   buildGoogleCalendarUpdateFromRendererEvent,
+  isRecurringGoogleCalendarEvent,
   isGoogleBackedCalendarEvent
 } from './googleCalendarWriteback'
 
@@ -103,12 +104,12 @@ describe('buildGoogleCalendarUpdateFromRendererEvent', () => {
   test('supports single-day all-day events', () => {
     expect(
       buildGoogleCalendarUpdateFromRendererEvent({
-          id: 'google:primary:evt-2',
-          title: 'Offsite',
-          location: 'HQ',
-          date: '2026-03-30',
-          allDay: true,
-          color: 'violet',
+        id: 'google:primary:evt-2',
+        title: 'Offsite',
+        location: 'HQ',
+        date: '2026-03-30',
+        allDay: true,
+        color: 'violet',
         calendar: 'Work',
         source: {
           provider: 'google',
@@ -152,7 +153,9 @@ describe('buildGoogleCalendarUpdateFromRendererEvent', () => {
             provider: 'google',
             calendarId: 'primary',
             eventId: 'evt-1',
-            timeZone: 'Asia/Kuala_Lumpur'
+            timeZone: 'Asia/Kuala_Lumpur',
+            recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO;COUNT=4'],
+            recurrenceDirty: true
           }
         },
         {
@@ -169,7 +172,9 @@ describe('buildGoogleCalendarUpdateFromRendererEvent', () => {
             provider: 'google',
             calendarId: 'team',
             eventId: 'evt-1',
-            timeZone: 'Asia/Kuala_Lumpur'
+            timeZone: 'Asia/Kuala_Lumpur',
+            recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=TU,WE;COUNT=6'],
+            recurrenceDirty: true
           }
         }
       )
@@ -188,13 +193,138 @@ describe('buildGoogleCalendarUpdateFromRendererEvent', () => {
           dateTime: '2026-03-31T10:30:00.000',
           date: null,
           timeZone: 'Asia/Kuala_Lumpur'
-        }
+        },
+        recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=TU,WE;COUNT=6']
       },
       move: {
         calendarId: 'primary',
         eventId: 'evt-1',
         destinationCalendarId: 'team'
       }
+    })
+  })
+
+  test('clears recurrence when a recurring Google event is changed to one-off', () => {
+    expect(
+      buildGoogleCalendarSavePlan(
+        {
+          id: 'google:primary:series-1',
+          title: 'Standup',
+          date: '2026-03-30',
+          startTime: '09:00',
+          endTime: '09:30',
+          allDay: false,
+          color: 'violet',
+          calendar: 'Work',
+          source: {
+            provider: 'google',
+            calendarId: 'primary',
+            eventId: 'series-1',
+            recurringEventId: 'series-1',
+            timeZone: 'Asia/Kuala_Lumpur'
+          }
+        },
+        {
+          id: 'google:primary:evt-1',
+          title: 'Standup',
+          date: '2026-03-30',
+          startTime: '09:00',
+          endTime: '09:30',
+          allDay: false,
+          color: 'violet',
+          calendar: 'Work',
+          source: {
+            provider: 'google',
+            calendarId: 'primary',
+            eventId: 'series-1',
+            recurringEventId: 'series-1',
+            timeZone: 'Asia/Kuala_Lumpur',
+            recurrence: [],
+            recurrenceDirty: true
+          }
+        }
+      )
+    ).toEqual({
+      update: {
+        calendarId: 'primary',
+        eventId: 'series-1',
+        summary: 'Standup',
+        location: null,
+        start: {
+          dateTime: '2026-03-30T09:00:00.000',
+          date: null,
+          timeZone: 'Asia/Kuala_Lumpur'
+        },
+        end: {
+          dateTime: '2026-03-30T09:30:00.000',
+          date: null,
+          timeZone: 'Asia/Kuala_Lumpur'
+        },
+        recurrence: []
+      },
+      move: null
+    })
+  })
+
+  test('builds an instance-scoped save plan for recurring events', () => {
+    expect(
+      buildGoogleCalendarSavePlan(
+        {
+          id: 'google:primary:evt-1',
+          title: 'Standup',
+          date: '2026-03-31',
+          startTime: '09:00',
+          endTime: '09:30',
+          allDay: false,
+          color: 'violet',
+          calendar: 'Work',
+          source: {
+            provider: 'google',
+            calendarId: 'primary',
+            eventId: 'series-1',
+            recurringEventId: 'series-1',
+            instanceEventId: 'evt-1',
+            timeZone: 'Asia/Kuala_Lumpur'
+          }
+        },
+        {
+          id: 'google:primary:evt-1',
+          title: 'Standup moved',
+          date: '2026-03-31',
+          startTime: '10:00',
+          endTime: '10:30',
+          allDay: false,
+          color: 'violet',
+          calendar: 'Work',
+          source: {
+            provider: 'google',
+            calendarId: 'primary',
+            eventId: 'series-1',
+            recurringEventId: 'series-1',
+            instanceEventId: 'evt-1',
+            timeZone: 'Asia/Kuala_Lumpur'
+          }
+        },
+        'instance'
+      )
+    ).toEqual({
+      update: {
+        calendarId: 'primary',
+        eventId: 'evt-1',
+        summary: 'Standup moved',
+        location: null,
+        start: {
+          dateTime: '2026-03-31T10:00:00.000',
+          date: null,
+          timeZone: 'Asia/Kuala_Lumpur'
+        },
+        end: {
+          dateTime: '2026-03-31T10:30:00.000',
+          date: null,
+          timeZone: 'Asia/Kuala_Lumpur'
+        }
+      },
+      move: null
     })
   })
 })
@@ -220,6 +350,84 @@ describe('buildGoogleCalendarDeleteFromRendererEvent', () => {
     ).toEqual({
       calendarId: 'primary',
       eventId: 'evt-1'
+    })
+  })
+
+  test('detects recurring Google-backed events', () => {
+    expect(
+      isRecurringGoogleCalendarEvent({
+        id: 'google:primary:evt-1',
+        title: 'Standup',
+        date: '2026-03-30',
+        startTime: '09:00',
+        endTime: '09:30',
+        color: 'violet',
+        calendar: 'Work',
+        source: {
+          provider: 'google',
+          calendarId: 'primary',
+          eventId: 'series-1',
+          recurringEventId: 'series-1',
+          instanceEventId: 'evt-1',
+          timeZone: 'Asia/Kuala_Lumpur'
+        }
+      })
+    ).toBe(true)
+  })
+
+  test('builds an instance delete payload for recurring events', () => {
+    expect(
+      buildGoogleCalendarDeleteFromRendererEvent(
+        {
+          id: 'google:primary:evt-1',
+          title: 'Standup',
+          date: '2026-03-30',
+          startTime: '09:00',
+          endTime: '09:30',
+          color: 'violet',
+          calendar: 'Work',
+          source: {
+            provider: 'google',
+            calendarId: 'primary',
+            eventId: 'series-1',
+            recurringEventId: 'series-1',
+            instanceEventId: 'evt-1',
+            timeZone: 'Asia/Kuala_Lumpur'
+          }
+        },
+        'instance'
+      )
+    ).toEqual({
+      calendarId: 'primary',
+      eventId: 'evt-1'
+    })
+  })
+
+  test('builds a series delete payload for recurring events', () => {
+    expect(
+      buildGoogleCalendarDeleteFromRendererEvent(
+        {
+          id: 'google:primary:evt-1',
+          title: 'Standup',
+          date: '2026-03-30',
+          startTime: '09:00',
+          endTime: '09:30',
+          color: 'violet',
+          calendar: 'Work',
+          source: {
+            provider: 'google',
+            calendarId: 'primary',
+            eventId: 'series-1',
+            recurringEventId: 'series-1',
+            instanceEventId: 'evt-1',
+            timeZone: 'Asia/Kuala_Lumpur'
+          }
+        },
+        'series'
+      )
+    ).toEqual({
+      calendarId: 'primary',
+      eventId: 'series-1'
     })
   })
 })

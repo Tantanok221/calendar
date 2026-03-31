@@ -15,11 +15,9 @@ import { cn } from '../lib/utils'
 import { getClosestTimeSuggestion, getTimeSuggestions } from '../lib/timeSuggestions'
 import { EVENT_COLORS, isSameDay } from '../data/events'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
-import {
-  getDefaultWritableCalendarId,
-  getWritableCalendars
-} from '../lib/calendarPermissions'
-import type { CreateCalendarEventDraft, RepeatEndType } from '../lib/googleCalendarCreate'
+import { getDefaultWritableCalendarId, getWritableCalendars } from '../lib/calendarPermissions'
+import type { CreateCalendarEventDraft } from '../lib/googleCalendarCreate'
+import type { RepeatEndType } from '../lib/googleCalendarRecurrence'
 import { shouldSubmitOnEnterKeyDown } from '../lib/keyboardSubmit'
 import { addDays, addMonths, getNextMonday, getToday, useToday } from '../lib/today'
 
@@ -420,9 +418,7 @@ export default function NewEventPopover({
   }, [calendarId, calendars])
 
   const toggleRepeatDay = (idx: number): void => {
-    setRepeatDays((prev) =>
-      prev.includes(idx) ? prev.filter((d) => d !== idx) : [...prev, idx]
-    )
+    setRepeatDays((prev) => (prev.includes(idx) ? prev.filter((d) => d !== idx) : [...prev, idx]))
   }
 
   const handleSubmit = async (): Promise<void> => {
@@ -622,7 +618,10 @@ export default function NewEventPopover({
 
           {/* ── Repeat toggle ── */}
           <div className="flex items-center gap-2 px-4 py-3">
-            <Repeat size={14} style={{ color: repeat ? 'var(--accent-text)' : 'var(--text-muted)', flexShrink: 0 }} />
+            <Repeat
+              size={14}
+              style={{ color: repeat ? 'var(--accent-text)' : 'var(--text-muted)', flexShrink: 0 }}
+            />
             <button
               disabled={isSubmitting}
               onClick={() => setRepeat(!repeat)}
@@ -653,7 +652,10 @@ export default function NewEventPopover({
             >
               {/* Day-of-week selector */}
               <div className="flex flex-col gap-1.5">
-                <p className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: 'var(--text-dim)' }}>
+                <p
+                  className="text-[10px] uppercase tracking-widest font-semibold"
+                  style={{ color: 'var(--text-dim)' }}
+                >
                   Repeats on
                 </p>
                 <div className="flex items-center gap-1">
@@ -695,7 +697,10 @@ export default function NewEventPopover({
 
               {/* End condition */}
               <div className="flex flex-col gap-1.5">
-                <p className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: 'var(--text-dim)' }}>
+                <p
+                  className="text-[10px] uppercase tracking-widest font-semibold"
+                  style={{ color: 'var(--text-dim)' }}
+                >
                   Ends
                 </p>
                 {/* End type toggle */}
@@ -730,7 +735,9 @@ export default function NewEventPopover({
                 {/* End value */}
                 {repeatEndType === 'date' ? (
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Until</span>
+                    <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                      Until
+                    </span>
                     <DatePicker value={repeatUntil} onChange={setRepeatUntil} />
                   </div>
                 ) : (

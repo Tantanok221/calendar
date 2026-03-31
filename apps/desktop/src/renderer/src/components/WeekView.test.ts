@@ -41,7 +41,7 @@ describe('WeekView', () => {
 
   test('renders each week column at the full timed-grid height', () => {
     const html = renderWeekView([])
-    const dayColumnMatches = html.match(/class=\"day-col-inner\" style=\"[^\"]*height:1536px/g)
+    const dayColumnMatches = html.match(/class="day-col-inner" style="[^"]*height:1536px/g)
 
     expect(dayColumnMatches).toHaveLength(7)
   })

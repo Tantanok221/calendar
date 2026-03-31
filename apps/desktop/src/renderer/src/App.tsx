@@ -8,6 +8,8 @@ import DayView from './components/DayView'
 import GoogleCalendarLoginModal from './components/GoogleCalendarLoginModal'
 import SettingsModal from './components/SettingsModal'
 import FloatingDaySidebar from './components/FloatingDaySidebar'
+import RecurringDeleteModal from './components/RecurringDeleteModal'
+import RecurringEditModal from './components/RecurringEditModal'
 import { EVENTS, fromDateStr, isSameDay } from './data/events'
 import NewEventPopover from './components/NewEventPopover'
 import type { CalendarEvent } from './data/events'
@@ -29,7 +31,10 @@ import {
 import {
   buildGoogleCalendarDeleteFromRendererEvent,
   buildGoogleCalendarSavePlan,
-  isGoogleBackedCalendarEvent
+  isGoogleBackedCalendarEvent,
+  isRecurringGoogleCalendarEvent,
+  type GoogleCalendarDeleteScope,
+  type GoogleCalendarSaveScope
 } from './lib/googleCalendarWriteback'
 import {
   buildGoogleCalendarCreateInput,
@@ -89,6 +94,16 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
   const [newEventDefaults, setNewEventDefaults] = useState<NewEventDraftDefaults | undefined>(
     undefined
   )
+  const [pendingRecurringSave, setPendingRecurringSave] = useState<{
+    previousEvent: CalendarEvent
+    updatedEvent: CalendarEvent
+  } | null>(null)
+  const [pendingRecurringSaveBusyScope, setPendingRecurringSaveBusyScope] =
+    useState<GoogleCalendarSaveScope | null>(null)
+  const [pendingRecurringDeleteEvent, setPendingRecurringDeleteEvent] =
+    useState<CalendarEvent | null>(null)
+  const [pendingRecurringDeleteBusyScope, setPendingRecurringDeleteBusyScope] =
+    useState<GoogleCalendarDeleteScope | null>(null)
   const [sidebarShortcut, setSidebarShortcut] = useState<ShortcutKeys | null>(null)
   const previousTodayRef = useRef(today)
 
@@ -261,17 +276,31 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
     if (view !== 'day') setView('day')
   }
 
-  const handleEventChange = async (updatedEvent: CalendarEvent): Promise<void> => {
+  const handleEventChange = async (
+    updatedEvent: CalendarEvent,
+    scope?: GoogleCalendarSaveScope
+  ): Promise<void> => {
     const previousEvent = events.find((event) => event.id === updatedEvent.id)
 
     if (!previousEvent) {
       return
     }
 
+    if (
+      scope === undefined &&
+      isRecurringGoogleCalendarEvent(previousEvent) &&
+      isGoogleBackedCalendarEvent(updatedEvent) &&
+      updatedEvent.source.recurrenceDirty !== true
+    ) {
+      setPendingRecurringSaveBusyScope(null)
+      setPendingRecurringSave({ previousEvent, updatedEvent })
+      return
+    }
+
     setCurrentDate(fromDateStr(updatedEvent.date))
 
     setEvents((currentEvents) =>
-      sortCalendarEvents(replaceEventInstances(currentEvents, previousEvent, [updatedEvent]))
+      sortCalendarEvents(replaceChangedEvents(currentEvents, previousEvent, updatedEvent, scope))
     )
 
     if (!isGoogleBackedCalendarEvent(updatedEvent) || !isGoogleBackedCalendarEvent(previousEvent)) {
@@ -279,41 +308,52 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
     }
 
     try {
-      const savePlan = buildGoogleCalendarSavePlan(previousEvent, updatedEvent)
+      const savePlan = buildGoogleCalendarSavePlan(previousEvent, updatedEvent, scope)
 
       if (!savePlan) {
         return
       }
 
-      let remoteEvent = await window.api.googleCalendar.updateEvent(savePlan.update)
+      await window.api.googleCalendar.updateEvent(savePlan.update)
 
       if (savePlan.move) {
-        remoteEvent = await window.api.googleCalendar.moveEvent(savePlan.move)
+        await window.api.googleCalendar.moveEvent(savePlan.move)
       }
 
-      const mappedEvents = buildGoogleCalendarPresentation(googleCalendars, [remoteEvent]).events
-
-      setEvents((currentEvents) =>
-        sortCalendarEvents(replaceEventInstances(currentEvents, updatedEvent, mappedEvents))
-      )
+      await syncGoogleCalendarData(fromDateStr(updatedEvent.date))
+      setGoogleCalendarError(null)
     } catch (error) {
       setEvents((currentEvents) =>
-        sortCalendarEvents(replaceEventInstances(currentEvents, updatedEvent, [previousEvent]))
+        sortCalendarEvents(replaceChangedEvents(currentEvents, updatedEvent, previousEvent, scope))
       )
 
       setGoogleCalendarError(getGoogleCalendarErrorMessage(error))
       console.error(error)
+    } finally {
+      setPendingRecurringSaveBusyScope(null)
+      setPendingRecurringSave((currentSave) =>
+        currentSave?.updatedEvent.id === updatedEvent.id ? null : currentSave
+      )
     }
   }
 
-  const handleEventDelete = async (eventToDelete: CalendarEvent): Promise<void> => {
+  const handleEventDelete = async (
+    eventToDelete: CalendarEvent,
+    scope?: GoogleCalendarDeleteScope
+  ): Promise<void> => {
+    if (scope === undefined && isRecurringGoogleCalendarEvent(eventToDelete)) {
+      setPendingRecurringDeleteBusyScope(null)
+      setPendingRecurringDeleteEvent(eventToDelete)
+      return
+    }
+
     const previousEvents = events
 
     setEvents((currentEvents) =>
-      sortCalendarEvents(removeEventInstances(currentEvents, eventToDelete))
+      sortCalendarEvents(removeDeletedEvents(currentEvents, eventToDelete, scope))
     )
 
-    const googleDelete = buildGoogleCalendarDeleteFromRendererEvent(eventToDelete)
+    const googleDelete = buildGoogleCalendarDeleteFromRendererEvent(eventToDelete, scope)
 
     if (!googleDelete) {
       return
@@ -321,11 +361,20 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
 
     try {
       await window.api.googleCalendar.deleteEvent(googleDelete)
+      if (isRecurringGoogleCalendarEvent(eventToDelete)) {
+        await syncGoogleCalendarData(fromDateStr(eventToDelete.date))
+      }
+      setGoogleCalendarError(null)
     } catch (error) {
       setEvents(previousEvents)
       setGoogleCalendarError(getGoogleCalendarErrorMessage(error))
       console.error(error)
       throw error
+    } finally {
+      setPendingRecurringDeleteBusyScope(null)
+      setPendingRecurringDeleteEvent((currentEvent) =>
+        currentEvent?.id === eventToDelete.id ? null : currentEvent
+      )
     }
   }
 
@@ -437,7 +486,7 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
           ? googleCalendars
           : await window.api.googleCalendar.listCalendars()
       const syncRange = getGoogleCalendarSyncRange(anchorDate)
-      const eventBatches = await Promise.all(
+      const instanceBatches = await Promise.all(
         calendarsToLoad.map((calendar) =>
           window.api.googleCalendar.listEvents({
             calendarId: calendar.id,
@@ -446,7 +495,21 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
           })
         )
       )
-      const presentation = buildGoogleCalendarPresentation(calendarsToLoad, eventBatches.flat())
+      const recurringSeriesBatches = await Promise.all(
+        calendarsToLoad.map((calendar) =>
+          window.api.googleCalendar
+            .listEvents({
+              calendarId: calendar.id,
+              ...syncRange,
+              singleEvents: false
+            })
+            .then((events) => events.filter((event) => Boolean(event.recurrence)))
+        )
+      )
+      const presentation = buildGoogleCalendarPresentation(calendarsToLoad, [
+        ...instanceBatches.flat(),
+        ...recurringSeriesBatches.flat()
+      ])
 
       setGoogleCalendars(calendarsToLoad)
       setCalendarOptions(
@@ -511,6 +574,40 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
         shortcutErrorMessage={shortcutError}
         sidebarShortcut={sidebarShortcut}
         onSidebarShortcutChange={handleSidebarShortcutChange}
+      />
+      <RecurringDeleteModal
+        open={pendingRecurringDeleteEvent !== null}
+        onClose={() => setPendingRecurringDeleteEvent(null)}
+        busyScope={pendingRecurringDeleteBusyScope}
+        onDeleteThisEvent={() => {
+          if (pendingRecurringDeleteEvent) {
+            setPendingRecurringDeleteBusyScope('instance')
+            void handleEventDelete(pendingRecurringDeleteEvent, 'instance')
+          }
+        }}
+        onDeleteAllEvents={() => {
+          if (pendingRecurringDeleteEvent) {
+            setPendingRecurringDeleteBusyScope('series')
+            void handleEventDelete(pendingRecurringDeleteEvent, 'series')
+          }
+        }}
+      />
+      <RecurringEditModal
+        open={pendingRecurringSave !== null}
+        onClose={() => setPendingRecurringSave(null)}
+        busyScope={pendingRecurringSaveBusyScope}
+        onEditThisEvent={() => {
+          if (pendingRecurringSave) {
+            setPendingRecurringSaveBusyScope('instance')
+            void handleEventChange(pendingRecurringSave.updatedEvent, 'instance')
+          }
+        }}
+        onEditAllEvents={() => {
+          if (pendingRecurringSave) {
+            setPendingRecurringSaveBusyScope('series')
+            void handleEventChange(pendingRecurringSave.updatedEvent, 'series')
+          }
+        }}
       />
       <NewEventPopover
         key={newEventKey}
@@ -632,6 +729,31 @@ function removeEventInstances(
   targetEvent: CalendarEvent
 ): CalendarEvent[] {
   return events.filter((event) => !isSameEventInstanceGroup(event, targetEvent))
+}
+
+function removeDeletedEvents(
+  events: CalendarEvent[],
+  targetEvent: CalendarEvent,
+  scope?: GoogleCalendarDeleteScope
+): CalendarEvent[] {
+  if (scope === 'instance') {
+    return events.filter((event) => event.id !== targetEvent.id)
+  }
+
+  return removeEventInstances(events, targetEvent)
+}
+
+function replaceChangedEvents(
+  events: CalendarEvent[],
+  targetEvent: CalendarEvent,
+  replacementEvent: CalendarEvent,
+  scope?: GoogleCalendarSaveScope
+): CalendarEvent[] {
+  if (scope === 'instance') {
+    return [...events.filter((event) => event.id !== targetEvent.id), replacementEvent]
+  }
+
+  return replaceEventInstances(events, targetEvent, [replacementEvent])
 }
 
 function isSameEventInstanceGroup(left: CalendarEvent, right: CalendarEvent): boolean {

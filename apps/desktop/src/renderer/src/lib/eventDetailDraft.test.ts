@@ -10,7 +10,13 @@ const BASE_DRAFT: EventDetailDraft = {
   endTime: '2:00 PM',
   calendarId: 'team',
   calendarName: 'Team',
-  color: 'green'
+  color: 'green',
+  repeatChanged: false,
+  repeat: false,
+  repeatDays: [],
+  repeatEndType: 'date',
+  repeatUntil: new Date(2026, 4, 1),
+  repeatCount: 4
 }
 
 describe('buildUpdatedEventFromDetailDraft', () => {
@@ -51,6 +57,57 @@ describe('buildUpdatedEventFromDetailDraft', () => {
         calendarId: 'team',
         eventId: 'evt-1',
         timeZone: 'Asia/Kuala_Lumpur'
+      }
+    })
+  })
+
+  test('stores Google recurrence changes on the updated event source', () => {
+    expect(
+      buildUpdatedEventFromDetailDraft(
+        {
+          id: 'google:primary:series-1',
+          title: 'Standup',
+          date: '2026-03-30',
+          startTime: '09:00',
+          endTime: '09:30',
+          allDay: false,
+          color: 'violet',
+          calendar: 'Work',
+          source: {
+            provider: 'google',
+            calendarId: 'primary',
+            eventId: 'series-1',
+            recurringEventId: 'series-1',
+            timeZone: 'Asia/Kuala_Lumpur'
+          }
+        },
+        {
+          ...BASE_DRAFT,
+          repeatChanged: true,
+          repeat: true,
+          repeatDays: [1, 2],
+          repeatEndType: 'count',
+          repeatCount: 6
+        }
+      )
+    ).toEqual({
+      id: 'google:primary:series-1',
+      title: 'Rescheduled standup',
+      location: 'Boardroom 2',
+      date: '2026-04-01',
+      startTime: '13:00',
+      endTime: '14:00',
+      allDay: false,
+      color: 'green',
+      calendar: 'Team',
+      source: {
+        provider: 'google',
+        calendarId: 'team',
+        eventId: 'series-1',
+        recurringEventId: 'series-1',
+        timeZone: 'Asia/Kuala_Lumpur',
+        recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=TU,WE;COUNT=6'],
+        recurrenceDirty: true
       }
     })
   })

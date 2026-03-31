@@ -30,6 +30,7 @@ import {
 } from '../lib/calendarDrag'
 import { buildCalendarHours, formatCalendarHour } from '../lib/calendarHours'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
+import type { GoogleCalendarDeleteScope } from '../lib/googleCalendarWriteback'
 import { getAllDayEventPillMotion } from '../lib/eventMotion'
 import { buildTimedEventLayout } from '../lib/timedEventLayout'
 import type { TimedEventLayout } from '../lib/timedEventLayout'
@@ -303,8 +304,7 @@ function DropSlot({
     previewDurationMinutes !== undefined
       ? getTimedDragPreviewRange(startMinutes, previewDurationMinutes)
       : null
-  const top =
-    ((previewRange?.startMinutes ?? startMinutes) - START_HOUR * 60) / 60 * HOUR_HEIGHT
+  const top = (((previewRange?.startMinutes ?? startMinutes) - START_HOUR * 60) / 60) * HOUR_HEIGHT
   const height =
     (((previewRange?.endMinutes ?? startMinutes + SNAP_MINUTES) -
       (previewRange?.startMinutes ?? startMinutes)) /
@@ -330,7 +330,13 @@ function DropSlot({
   )
 }
 
-function AllDayDropSlot({ id, children }: { id: string; children: React.ReactNode }): React.JSX.Element {
+function AllDayDropSlot({
+  id,
+  children
+}: {
+  id: string
+  children: React.ReactNode
+}): React.JSX.Element {
   const { ref, isDropTarget } = useDroppable({ id })
 
   return (
@@ -355,7 +361,7 @@ interface DayViewProps {
   currentDate: Date
   today: Date
   onEventChange: (event: CalendarEvent) => Promise<void> | void
-  onEventDelete: (event: CalendarEvent) => Promise<void> | void
+  onEventDelete: (event: CalendarEvent, scope?: GoogleCalendarDeleteScope) => Promise<void> | void
   onTimedSelectionCreate: (date: Date, range: TimedSelectionRange) => void
   initialScrollAnchor?: 'morning' | 'current-time'
   showHeader?: boolean
@@ -624,8 +630,7 @@ export default function DayView({
   const allDayEvents = events.filter((event) => event.date === dayStr && event.allDay)
   const draggedTimedEvent = draggedEventId
     ? events.find(
-        (event) =>
-          event.id === draggedEventId && !event.allDay && event.startTime && event.endTime
+        (event) => event.id === draggedEventId && !event.allDay && event.startTime && event.endTime
       )
     : null
   const draggedTimedEventDurationMinutes =
@@ -818,7 +823,7 @@ export default function DayView({
                     onClick={handleEventClick}
                     onResizeStart={handleTimedEventResizeStart(event)}
                   />
-              ))}
+                ))}
               </AnimatePresence>
 
               {isToday && nowPx >= 0 && (

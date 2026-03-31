@@ -5,6 +5,7 @@ import type { CalendarEvent } from '../data/events'
 import { computeAnchor } from '../lib/eventPopoverAnchor'
 import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
+import type { GoogleCalendarDeleteScope } from '../lib/googleCalendarWriteback'
 import {
   getCalendarEventInteractionMode,
   isCalendarEventEditable
@@ -78,7 +79,7 @@ interface MonthViewProps {
   today: Date
   onDateSelect: (d: Date) => void
   onEventChange: (event: CalendarEvent) => Promise<void> | void
-  onEventDelete: (event: CalendarEvent) => Promise<void> | void
+  onEventDelete: (event: CalendarEvent, scope?: GoogleCalendarDeleteScope) => Promise<void> | void
 }
 
 export default function MonthView({
