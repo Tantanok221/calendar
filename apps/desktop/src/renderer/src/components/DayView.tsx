@@ -27,6 +27,7 @@ import {
 } from '../lib/calendarDrag'
 import { buildCalendarHours, formatCalendarHour } from '../lib/calendarHours'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
+import { getDayViewInitialScrollTop } from '../lib/today'
 import EventDetailPopover from './EventDetailPopover'
 
 const HOURS = buildCalendarHours(START_HOUR, END_HOUR)
@@ -287,6 +288,8 @@ interface DayViewProps {
   onEventChange: (event: CalendarEvent) => Promise<void> | void
   onEventDelete: (event: CalendarEvent) => Promise<void> | void
   onTimedSelectionCreate: (date: Date, range: TimedSelectionRange) => void
+  initialScrollAnchor?: 'morning' | 'current-time'
+  showHeader?: boolean
 }
 
 export default function DayView({
@@ -296,7 +299,9 @@ export default function DayView({
   today,
   onEventChange,
   onEventDelete,
-  onTimedSelectionCreate
+  onTimedSelectionCreate,
+  initialScrollAnchor = 'morning',
+  showHeader = true
 }: DayViewProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null)
   const suppressClickUntilRef = useRef(0)
@@ -440,9 +445,16 @@ export default function DayView({
 
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = (8 - START_HOUR) * HOUR_HEIGHT - 8
+      scrollRef.current.scrollTop = getDayViewInitialScrollTop({
+        reference: new Date(),
+        isToday: initialScrollAnchor === 'current-time' && isToday,
+        viewportHeight: scrollRef.current.clientHeight,
+        dayStartHour: START_HOUR,
+        dayEndHour: END_HOUR,
+        hourHeight: HOUR_HEIGHT
+      })
     }
-  }, [])
+  }, [initialScrollAnchor, isToday])
 
   useEffect(() => {
     const id = setInterval(() => setNowPx(nowOffsetPx()), 60_000)
@@ -486,46 +498,47 @@ export default function DayView({
             }}
           />
         )}
-        {/* Day header */}
-        <div
-          className="shrink-0 px-4 py-3 flex items-center gap-3"
-          style={{ borderBottom: '1px solid var(--border)' }}
-        >
-          <div className="flex items-center gap-2">
-            <span
-              className="flex items-center justify-center w-9 h-9 rounded-xl text-xl font-bold"
-              style={
-                isToday
-                  ? { background: 'var(--accent)', color: 'var(--accent-on)' }
-                  : { background: 'var(--surface-2)', color: 'var(--text)' }
-              }
-            >
-              {currentDate.getDate()}
-            </span>
-            <div>
-              <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--text)' }}>
-                {currentDate.toLocaleDateString('en-US', { weekday: 'long' })}
-              </p>
-              <p className="text-[11px] leading-tight" style={{ color: 'var(--text-muted)' }}>
-                {currentDate.toLocaleDateString('en-US', {
-                  month: 'long',
-                  day: 'numeric',
-                  year: 'numeric'
-                })}
-              </p>
+        {showHeader && (
+          <div
+            className="shrink-0 px-4 py-3 flex items-center gap-3"
+            style={{ borderBottom: '1px solid var(--border)' }}
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className="flex items-center justify-center w-9 h-9 rounded-xl text-xl font-bold"
+                style={
+                  isToday
+                    ? { background: 'var(--accent)', color: 'var(--accent-on)' }
+                    : { background: 'var(--surface-2)', color: 'var(--text)' }
+                }
+              >
+                {currentDate.getDate()}
+              </span>
+              <div>
+                <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--text)' }}>
+                  {currentDate.toLocaleDateString('en-US', { weekday: 'long' })}
+                </p>
+                <p className="text-[11px] leading-tight" style={{ color: 'var(--text-muted)' }}>
+                  {currentDate.toLocaleDateString('en-US', {
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}
+                </p>
+              </div>
             </div>
-          </div>
 
-          {timedEvents.length > 0 && (
-            <div
-              className="ml-auto px-2.5 py-1 rounded-full text-[11px] font-medium"
-              style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
-            >
-              {timedEvents.length + allDayEvents.length} event
-              {timedEvents.length + allDayEvents.length !== 1 ? 's' : ''}
-            </div>
-          )}
-        </div>
+            {timedEvents.length > 0 && (
+              <div
+                className="ml-auto px-2.5 py-1 rounded-full text-[11px] font-medium"
+                style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}
+              >
+                {timedEvents.length + allDayEvents.length} event
+                {timedEvents.length + allDayEvents.length !== 1 ? 's' : ''}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* All-day strip */}
         {allDayEvents.length > 0 && (

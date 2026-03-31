@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { X, GoogleLogo, CheckCircle, WarningCircle, ArrowClockwise } from '@phosphor-icons/react'
+import { X, GoogleLogo, CheckCircle, WarningCircle, ArrowClockwise, Keyboard } from '@phosphor-icons/react'
 import type { GoogleCalendarConnectionStatus } from '../../../main/googleCalendar/types'
+import type { ShortcutKeys, ShortcutModifier } from '../lib/calendarKeyboard'
 
-type SettingsSection = 'integrations'
+type SettingsSection = 'integrations' | 'shortcuts'
 
 interface SettingsModalProps {
   open: boolean
@@ -12,6 +13,9 @@ interface SettingsModalProps {
   isConnectPending: boolean
   errorMessage: string | null
   onGoogleConnect: () => void
+  shortcutErrorMessage: string | null
+  sidebarShortcut: ShortcutKeys | null
+  onSidebarShortcutChange: (shortcut: ShortcutKeys | null) => void
 }
 
 function GoogleCalendarRow({
@@ -108,8 +112,175 @@ function GoogleCalendarRow({
   )
 }
 
+function formatModifier(mod: string): string {
+  if (mod === 'Meta') return '⌘'
+  if (mod === 'Control') return '⌃'
+  if (mod === 'Alt') return '⌥'
+  if (mod === 'Shift') return '⇧'
+  return mod
+}
+
+function KeyBadge({ label }: { label: string }): React.JSX.Element {
+  return (
+    <span
+      className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded text-[10px] font-semibold"
+      style={{
+        background: 'var(--surface-3)',
+        border: '1px solid var(--border-strong)',
+        color: 'var(--text-muted)',
+      }}
+    >
+      {label}
+    </span>
+  )
+}
+
+function ShortcutRecorder({
+  shortcut,
+  onChange,
+}: {
+  shortcut: ShortcutKeys | null
+  onChange: (s: ShortcutKeys | null) => void
+}): React.JSX.Element {
+  const [recording, setRecording] = useState(false)
+
+  useEffect(() => {
+    if (!recording) return
+
+    function onKeyDown(e: KeyboardEvent): void {
+      e.preventDefault()
+
+      if (e.key === 'Escape') {
+        setRecording(false)
+        return
+      }
+
+      const modifiers: ShortcutModifier[] = []
+      if (e.metaKey) modifiers.push('Meta')
+      if (e.ctrlKey) modifiers.push('Control')
+      if (e.altKey) modifiers.push('Alt')
+      if (e.shiftKey) modifiers.push('Shift')
+
+      const ignoredKeys = ['Meta', 'Control', 'Alt', 'Shift']
+      if (ignoredKeys.includes(e.key)) return
+
+      onChange({ modifiers, key: e.key.toUpperCase() })
+      setRecording(false)
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [recording, onChange])
+
+  return (
+    <div className="flex items-center gap-2">
+      {!recording && shortcut ? (
+        <div className="flex items-center gap-1">
+          {shortcut.modifiers.map((m) => (
+            <KeyBadge key={m} label={formatModifier(m)} />
+          ))}
+          <KeyBadge label={shortcut.key} />
+        </div>
+      ) : null}
+
+      {!recording && !shortcut ? (
+        <span className="text-[11px]" style={{ color: 'var(--text-dim)' }}>
+          Not set
+        </span>
+      ) : null}
+
+      {recording ? (
+        <span className="text-[11px]" style={{ color: 'var(--accent)' }}>
+          Press keys…
+        </span>
+      ) : null}
+
+      <button
+        onClick={() => setRecording((r) => !r)}
+        className="h-6 px-2 rounded-md text-[11px] font-medium transition-colors duration-100"
+        style={
+          recording
+            ? {
+                background: 'var(--accent)',
+                color: 'var(--accent-on)',
+              }
+            : {
+                background: 'var(--surface-3)',
+                border: '1px solid var(--border-strong)',
+                color: 'var(--text-muted)',
+              }
+        }
+      >
+        {recording ? 'Cancel' : shortcut ? 'Change' : 'Record'}
+      </button>
+
+      {shortcut && !recording && (
+        <button
+          onClick={() => onChange(null)}
+          className="h-6 w-6 flex items-center justify-center rounded-md transition-colors duration-100"
+          style={{ color: 'var(--text-dim)' }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--surface-3)'
+            e.currentTarget.style.color = 'var(--text-muted)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent'
+            e.currentTarget.style.color = 'var(--text-dim)'
+          }}
+        >
+          <X size={11} weight="bold" />
+        </button>
+      )}
+    </div>
+  )
+}
+
+function ShortcutRow({
+  label,
+  description,
+  shortcut,
+  onChange,
+}: {
+  label: string
+  description: string
+  shortcut: ShortcutKeys | null
+  onChange: (s: ShortcutKeys | null) => void
+}): React.JSX.Element {
+  return (
+    <div
+      className="flex items-center gap-4 px-4 py-3.5 rounded-xl"
+      style={{
+        background: 'var(--surface-2)',
+        border: '1px solid var(--border)',
+      }}
+    >
+      <div
+        className="flex items-center justify-center w-9 h-9 rounded-lg shrink-0"
+        style={{
+          background: 'var(--surface-3)',
+          border: '1px solid var(--border-strong)',
+        }}
+      >
+        <Keyboard size={18} weight="bold" style={{ color: 'var(--text-muted)' }} />
+      </div>
+
+      <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+        <span className="text-xs font-semibold" style={{ color: 'var(--text)' }}>
+          {label}
+        </span>
+        <span className="text-[11px]" style={{ color: 'var(--text-dim)' }}>
+          {description}
+        </span>
+      </div>
+
+      <ShortcutRecorder shortcut={shortcut} onChange={onChange} />
+    </div>
+  )
+}
+
 const NAV_ITEMS: { id: SettingsSection; label: string }[] = [
   { id: 'integrations', label: 'Integrations' },
+  { id: 'shortcuts', label: 'Shortcuts' },
 ]
 
 export default function SettingsModal({
@@ -119,6 +290,9 @@ export default function SettingsModal({
   isConnectPending,
   errorMessage,
   onGoogleConnect,
+  shortcutErrorMessage,
+  sidebarShortcut,
+  onSidebarShortcutChange
 }: SettingsModalProps): React.JSX.Element {
   const [activeSection, setActiveSection] = useState<SettingsSection>('integrations')
 
@@ -205,6 +379,45 @@ export default function SettingsModal({
                 <X size={13} weight="bold" />
               </button>
             </Dialog.Close>
+
+            {activeSection === 'shortcuts' && (
+              <div className="flex flex-col gap-4">
+                <div>
+                  <Dialog.Title
+                    className="text-sm font-semibold mb-0.5"
+                    style={{ color: 'var(--text)' }}
+                  >
+                    Shortcuts
+                  </Dialog.Title>
+                  <Dialog.Description
+                    className="text-[11px]"
+                    style={{ color: 'var(--text-dim)' }}
+                  >
+                    Customize keyboard shortcuts for quick actions.
+                  </Dialog.Description>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <p
+                    className="text-[10px] font-semibold uppercase tracking-widest"
+                    style={{ color: 'var(--text-dim)' }}
+                  >
+                    Views
+                  </p>
+                  <ShortcutRow
+                    label="Pop out sidebar"
+                    description="Open the floating day sidebar anywhere while the app is running"
+                    shortcut={sidebarShortcut}
+                    onChange={onSidebarShortcutChange}
+                  />
+                  {shortcutErrorMessage && (
+                    <p className="text-[11px]" style={{ color: '#c07860' }}>
+                      {shortcutErrorMessage}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
 
             {activeSection === 'integrations' && (
               <div className="flex flex-col gap-4">

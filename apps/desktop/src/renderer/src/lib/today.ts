@@ -1,5 +1,15 @@
 import { useEffect, useState } from 'react'
 
+interface DayViewInitialScrollTopInput {
+  reference?: Date
+  isToday: boolean
+  viewportHeight: number
+  dayStartHour?: number
+  dayEndHour?: number
+  hourHeight?: number
+  fallbackHour?: number
+}
+
 export function getToday(reference: Date = new Date()): Date {
   const today = new Date(reference)
   today.setHours(0, 0, 0, 0)
@@ -32,6 +42,39 @@ export function getMillisecondsUntilNextDay(reference: Date = new Date()): numbe
   return Math.max(1, nextDay.getTime() - reference.getTime())
 }
 
+export function getDayViewInitialScrollTop({
+  reference = new Date(),
+  isToday,
+  viewportHeight,
+  dayStartHour = 0,
+  dayEndHour = 24,
+  hourHeight = 64,
+  fallbackHour = 8
+}: DayViewInitialScrollTopInput): number {
+  const totalHeight = (dayEndHour - dayStartHour) * hourHeight
+  const maxScrollTop = Math.max(0, totalHeight - viewportHeight)
+  const fallbackScrollTop = clampScrollTop(
+    (fallbackHour - dayStartHour) * hourHeight - 8,
+    maxScrollTop
+  )
+
+  if (!isToday) {
+    return fallbackScrollTop
+  }
+
+  const currentMinutes = reference.getHours() * 60 + reference.getMinutes()
+  const dayStartMinutes = dayStartHour * 60
+  const dayEndMinutes = dayEndHour * 60
+
+  if (currentMinutes < dayStartMinutes || currentMinutes > dayEndMinutes) {
+    return fallbackScrollTop
+  }
+
+  const currentOffsetTop = ((currentMinutes - dayStartMinutes) / 60) * hourHeight
+
+  return clampScrollTop(currentOffsetTop - viewportHeight * 0.35, maxScrollTop)
+}
+
 export function useToday(): Date {
   const [today, setToday] = useState(() => getToday())
 
@@ -55,4 +98,8 @@ export function useToday(): Date {
   }, [])
 
   return today
+}
+
+function clampScrollTop(value: number, maxScrollTop: number): number {
+  return Math.max(0, Math.min(maxScrollTop, Math.round(value)))
 }
