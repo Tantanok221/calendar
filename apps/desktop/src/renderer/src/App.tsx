@@ -32,6 +32,11 @@ import {
   buildLocalEventsFromDraft,
   type CreateCalendarEventDraft
 } from './lib/googleCalendarCreate'
+import {
+  getCalendarKeyboardAction,
+  getNavigatedDate,
+  getTodayAnchorDate
+} from './lib/calendarKeyboard'
 import { getToday, useToday } from './lib/today'
 
 const DEFAULT_EVENTS = EVENTS.map((event) => ({ ...event }))
@@ -136,13 +141,38 @@ function App(): React.JSX.Element {
   }, [currentDate, googleCalendarStatus?.connected])
 
   const navigate = (dir: 'prev' | 'next'): void => {
-    const d = new Date(currentDate)
-    const n = dir === 'next' ? 1 : -1
-    if (view === 'day') d.setDate(d.getDate() + n)
-    else if (view === 'week') d.setDate(d.getDate() + n * 7)
-    else d.setMonth(d.getMonth() + n)
-    setCurrentDate(d)
+    setCurrentDate((activeDate) => getNavigatedDate(activeDate, view, dir))
   }
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      const action = getCalendarKeyboardAction(event)
+
+      if (!action) {
+        return
+      }
+
+      event.preventDefault()
+
+      if (action.type === 'navigate') {
+        setCurrentDate((activeDate) => getNavigatedDate(activeDate, view, action.direction))
+        return
+      }
+
+      if (action.type === 'set-view') {
+        setView(action.view)
+        return
+      }
+
+      setCurrentDate(getTodayAnchorDate(today))
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [today, view])
 
   const handleDateSelect = (d: Date): void => {
     setCurrentDate(d)
