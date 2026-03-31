@@ -32,6 +32,7 @@ import { buildCalendarHours, formatCalendarHour } from '../lib/calendarHours'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
 import { buildTimedEventLayout } from '../lib/timedEventLayout'
 import type { TimedEventLayout } from '../lib/timedEventLayout'
+import { isCalendarEventEditable } from '../lib/calendarPermissions'
 import EventDetailPopover from './EventDetailPopover'
 
 const HOURS = buildCalendarHours(START_HOUR, END_HOUR)
@@ -76,6 +77,7 @@ function dateFromDateStr(dateStr: string): Date {
 function TimedEventCard({
   event,
   layout,
+  editable,
   selected,
   dragging,
   resizing,
@@ -85,6 +87,7 @@ function TimedEventCard({
 }: {
   event: CalendarEvent
   layout: TimedEventLayout
+  editable: boolean
   selected: boolean
   dragging: boolean
   resizing: boolean
@@ -118,30 +121,35 @@ function TimedEventCard({
         color: color.text,
         left,
         right,
+        cursor: editable ? 'pointer' : 'default',
         outline: selected ? `1px solid ${color.dot}` : 'none',
         outlineOffset: -1,
         zIndex: dragging || resizing ? 20 : selected ? 12 : 2,
         boxShadow: dragging || resizing ? '0 10px 24px rgba(0,0,0,0.22)' : 'none'
       }}
     >
-      <div
-        ref={dragHandleRef}
-        aria-hidden="true"
-        className="event-drag-surface"
-        style={{ cursor: dragging ? 'grabbing' : 'grab' }}
-      />
-      <div
-        aria-hidden="true"
-        className="event-resize-handle event-resize-handle-top"
-        onPointerDown={(pointerEvent) => onResizeStart(pointerEvent, 'start')}
-        onClick={(clickEvent) => clickEvent.stopPropagation()}
-      />
-      <div
-        aria-hidden="true"
-        className="event-resize-handle event-resize-handle-bottom"
-        onPointerDown={(pointerEvent) => onResizeStart(pointerEvent, 'end')}
-        onClick={(clickEvent) => clickEvent.stopPropagation()}
-      />
+      {editable && (
+        <>
+          <div
+            ref={dragHandleRef}
+            aria-hidden="true"
+            className="event-drag-surface"
+            style={{ cursor: dragging ? 'grabbing' : 'grab' }}
+          />
+          <div
+            aria-hidden="true"
+            className="event-resize-handle event-resize-handle-top"
+            onPointerDown={(pointerEvent) => onResizeStart(pointerEvent, 'start')}
+            onClick={(clickEvent) => clickEvent.stopPropagation()}
+          />
+          <div
+            aria-hidden="true"
+            className="event-resize-handle event-resize-handle-bottom"
+            onPointerDown={(pointerEvent) => onResizeStart(pointerEvent, 'end')}
+            onClick={(clickEvent) => clickEvent.stopPropagation()}
+          />
+        </>
+      )}
       <div className="relative z-0 pointer-events-none">
         <p className="text-xs font-semibold leading-snug truncate">{event.title}</p>
         {!short && (
@@ -160,6 +168,7 @@ function TimedEventCard({
 function DraggableEventBlock({
   event,
   layout,
+  editable,
   selected,
   resizing,
   onClick,
@@ -167,6 +176,7 @@ function DraggableEventBlock({
 }: {
   event: CalendarEvent
   layout: TimedEventLayout
+  editable: boolean
   selected: boolean
   resizing: boolean
   onClick: (e: React.MouseEvent, ev: CalendarEvent) => void
@@ -181,6 +191,7 @@ function DraggableEventBlock({
     <TimedEventCard
       event={event}
       layout={layout}
+      editable={editable}
       selected={selected}
       dragging={isDragging}
       resizing={resizing}
@@ -193,12 +204,14 @@ function DraggableEventBlock({
 
 function AllDayEventPill({
   event,
+  editable,
   selected,
   dragging,
   onClick,
   elementRef
 }: {
   event: CalendarEvent
+  editable: boolean
   selected: boolean
   dragging: boolean
   onClick: (e: React.MouseEvent, ev: CalendarEvent) => void
@@ -223,7 +236,7 @@ function AllDayEventPill({
         color: color.text,
         outline: selected ? `1px solid ${color.dot}` : 'none',
         outlineOffset: -1,
-        cursor: dragging ? 'grabbing' : 'grab',
+        cursor: editable ? (dragging ? 'grabbing' : 'grab') : 'default',
         boxShadow: dragging ? '0 10px 24px rgba(0,0,0,0.22)' : 'none',
         touchAction: 'none'
       }}
@@ -235,10 +248,12 @@ function AllDayEventPill({
 
 function DraggableAllDayEventPill({
   event,
+  editable,
   selected,
   onClick
 }: {
   event: CalendarEvent
+  editable: boolean
   selected: boolean
   onClick: (e: React.MouseEvent, ev: CalendarEvent) => void
 }): React.JSX.Element {
@@ -250,10 +265,11 @@ function DraggableAllDayEventPill({
   return (
     <AllDayEventPill
       event={event}
+      editable={editable}
       selected={selected}
       dragging={isDragging}
       onClick={onClick}
-      elementRef={ref}
+      elementRef={editable ? ref : undefined}
     />
   )
 }
@@ -364,6 +380,10 @@ export default function DayView({
   }
 
   const handleEventClick = (e: React.MouseEvent, event: CalendarEvent): void => {
+    if (!isCalendarEventEditable(event, calendars)) {
+      return
+    }
+
     if (Date.now() < suppressClickUntilRef.current) return
 
     if (selectedEventId === event.id) {
@@ -382,6 +402,12 @@ export default function DayView({
 
     const eventId = parseEventDragId(source.id)
     if (!eventId) return
+
+    const event = events.find((candidate) => candidate.id === eventId)
+
+    if (!event || !isCalendarEventEditable(event, calendars)) {
+      return
+    }
 
     setDraggedEventId(eventId)
     clearSelection()
@@ -403,7 +429,7 @@ export default function DayView({
     if (canceled || !target) return
 
     const event = events.find((candidate) => candidate.id === eventId)
-    if (!event) return
+    if (!event || !isCalendarEventEditable(event, calendars)) return
 
     const slot = parseDropSlotId(String(target.id))
 
@@ -532,6 +558,7 @@ export default function DayView({
   const handleTimedEventResizeStart =
     (eventToResize: CalendarEvent) =>
     (pointerEvent: React.PointerEvent<HTMLDivElement>, edge: TimedEventResizeEdge): void => {
+      if (!isCalendarEventEditable(eventToResize, calendars)) return
       if (pointerEvent.button !== 0 || draggedEventId) return
 
       const dayColumn = pointerEvent.currentTarget.closest('.day-col-inner')
@@ -658,6 +685,7 @@ export default function DayView({
                 <DraggableAllDayEventPill
                   key={event.id}
                   event={event}
+                  editable={isCalendarEventEditable(event, calendars)}
                   selected={selectedEventId === event.id}
                   onClick={handleEventClick}
                 />
@@ -745,12 +773,15 @@ export default function DayView({
                     key={event.id}
                     event={event}
                     layout={timedEventLayout[event.id] ?? { columnIndex: 0, columnCount: 1 }}
+                    editable={isCalendarEventEditable(event, calendars)}
+                    event={event}
+                    layout={timedEventLayout[event.id] ?? { columnIndex: 0, columnCount: 1 }}
                     selected={selectedEventId === event.id}
                     resizing={timedResize?.eventId === event.id}
                     onClick={handleEventClick}
                     onResizeStart={handleTimedEventResizeStart(event)}
                   />
-                ))}
+              ))}
               </AnimatePresence>
 
               {isToday && nowPx >= 0 && (

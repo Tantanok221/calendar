@@ -5,6 +5,7 @@ import type { CalendarEvent } from '../data/events'
 import { computeAnchor } from '../lib/eventPopoverAnchor'
 import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
+import { isCalendarEventEditable } from '../lib/calendarPermissions'
 import EventDetailPopover from './EventDetailPopover'
 
 const DOW_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -23,10 +24,12 @@ function getMonthGrid(year: number, month: number): (Date | null)[] {
 
 function EventPill({
   event,
+  editable,
   selected,
   onClick
 }: {
   event: CalendarEvent
+  editable: boolean
   selected: boolean
   onClick: (e: React.MouseEvent, ev: CalendarEvent) => void
 }): React.JSX.Element {
@@ -38,10 +41,11 @@ function EventPill({
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.88 }}
       transition={{ duration: 0.14, ease: 'easeOut' }}
-      className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-tight truncate cursor-pointer transition-all duration-100 mb-0.5"
+      className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-tight truncate transition-all duration-100 mb-0.5"
       style={{
         background: selected ? c.pillBg.replace('0.18', '0.32') : c.pillBg,
         color: c.text,
+        cursor: editable ? 'pointer' : 'default',
         outline: selected ? `1px solid ${c.dot}` : 'none',
         outlineOffset: -1
       }}
@@ -49,7 +53,11 @@ function EventPill({
         e.stopPropagation()
         onClick(e, event)
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.filter = 'brightness(1.2)')}
+      onMouseEnter={(e) => {
+        if (editable) {
+          e.currentTarget.style.filter = 'brightness(1.2)'
+        }
+      }}
       onMouseLeave={(e) => (e.currentTarget.style.filter = 'none')}
     >
       <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: c.dot }} />
@@ -88,6 +96,10 @@ export default function MonthView({
     events.filter((event) => event.date === toDateStr(date))
 
   const handleEventClick = (e: React.MouseEvent, event: CalendarEvent): void => {
+    if (!isCalendarEventEditable(event, calendars)) {
+      return
+    }
+
     if (selectedEventId === event.id) {
       setSelectedEventId(null)
       setPopoverAnchor(null)
@@ -192,6 +204,7 @@ export default function MonthView({
                         <EventPill
                           key={e.id}
                           event={e}
+                          editable={isCalendarEventEditable(e, calendars)}
                           selected={selectedEventId === e.id}
                           onClick={handleEventClick}
                         />
