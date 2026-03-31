@@ -39,6 +39,7 @@ import EventDetailPopover from './EventDetailPopover'
 const HOURS = buildCalendarHours(START_HOUR, END_HOUR)
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const WEEK_GRID_TEMPLATE_COLUMNS = 'var(--time-col-w) repeat(7, minmax(0, 1fr))'
+const TIMED_GRID_HEIGHT = (END_HOUR - START_HOUR) * HOUR_HEIGHT
 const SLOT_STARTS = Array.from(
   { length: ((END_HOUR - START_HOUR) * 60) / SNAP_MINUTES },
   (_, index) => START_HOUR * 60 + index * SNAP_MINUTES
@@ -721,7 +722,7 @@ export default function WeekView({
 
         <div className="time-grid-scroll" ref={scrollRef}>
           <div className="grid" style={{ gridTemplateColumns: WEEK_GRID_TEMPLATE_COLUMNS }}>
-            <div className="relative" style={{ height: (END_HOUR - START_HOUR) * HOUR_HEIGHT }}>
+            <div className="relative" style={{ height: TIMED_GRID_HEIGHT }}>
               {HOURS.map((hour, index) => (
                 <span
                   key={hour}
@@ -747,7 +748,10 @@ export default function WeekView({
                 <div
                   key={toDateStr(day)}
                   className="day-col-inner"
-                  style={isToday ? { borderLeft: '1px solid var(--border)' } : {}}
+                  style={{
+                    height: TIMED_GRID_HEIGHT,
+                    ...(isToday ? { borderLeft: '1px solid var(--border)' } : {})
+                  }}
                   onPointerDown={handleTimedGridPointerDown(day)}
                   onPointerMove={handleTimedGridPointerMove}
                   onPointerUp={(event) => finishTimedSelection(event, true)}

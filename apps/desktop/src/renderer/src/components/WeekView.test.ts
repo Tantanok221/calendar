@@ -38,4 +38,11 @@ describe('WeekView', () => {
     expect(html.split(`grid-template-columns:${WEEK_GRID_TEMPLATE_COLUMNS}`)).toHaveLength(4)
     expect(html).toContain('ALL DAY')
   })
+
+  test('renders each week column at the full timed-grid height', () => {
+    const html = renderWeekView([])
+    const dayColumnMatches = html.match(/class=\"day-col-inner\" style=\"[^\"]*height:1536px/g)
+
+    expect(dayColumnMatches).toHaveLength(7)
+  })
 })
