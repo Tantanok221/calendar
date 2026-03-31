@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
 import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
 import MonthView from './components/MonthView'
@@ -40,8 +41,14 @@ import {
   getCalendarKeyboardAction,
   getNavigatedDate,
   getTodayAnchorDate,
+  matchesShortcut,
   type ShortcutKeys
 } from './lib/calendarKeyboard'
+import {
+  loadSidebarSettings,
+  saveSidebarSettings,
+  type SidebarSettings
+} from './lib/sidebarSettings'
 import { getToday, useToday } from './lib/today'
 import {
   buildTimedDraftFromSelection,
@@ -62,8 +69,9 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
   const [events, setEvents] = useState<CalendarEvent[]>(() =>
     DEFAULT_EVENTS.map((event) => ({ ...event }))
   )
-  const [calendarOptions, setCalendarOptions] =
-    useState<RendererCalendar[]>(DEFAULT_RENDERER_CALENDARS)
+  const [calendarOptions, setCalendarOptions] = useState<RendererCalendar[]>(
+    DEFAULT_RENDERER_CALENDARS
+  )
   const [googleCalendarStatus, setGoogleCalendarStatus] =
     useState<GoogleCalendarConnectionStatus | null>(null)
   const [googleCalendars, setGoogleCalendars] = useState<GoogleCalendarSummary[]>([])
@@ -73,6 +81,9 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
   const [showSettings, setShowSettings] = useState(false)
   const [shortcutError, setShortcutError] = useState<string | null>(null)
   const [hiddenCalendars, setHiddenCalendars] = useState<Set<string>>(new Set())
+  const [sidebarSettings, setSidebarSettings] = useState<SidebarSettings>(() =>
+    loadSidebarSettings(getSidebarSettingsStorage())
+  )
   const [showNewEvent, setShowNewEvent] = useState(false)
   const [newEventKey, setNewEventKey] = useState(0)
   const [newEventDefaults, setNewEventDefaults] = useState<NewEventDraftDefaults | undefined>(
@@ -147,7 +158,7 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
           return
         }
 
-        await syncGoogleCalendarData(currentDate)
+        await syncGoogleCalendarDataEffect(currentDate)
       } catch (error) {
         if (!cancelled) {
           setGoogleCalendarError(getGoogleCalendarErrorMessage(error))
@@ -168,6 +179,24 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
+      if (showSettings) {
+        return
+      }
+
+      if (matchesShortcut(event, sidebarSettings.toggleShortcut)) {
+        event.preventDefault()
+        setSidebarSettings((currentSettings) => {
+          const nextSettings = {
+            ...currentSettings,
+            sidebarVisible: !currentSettings.sidebarVisible
+          }
+
+          saveSidebarSettings(getSidebarSettingsStorage(), nextSettings)
+          return nextSettings
+        })
+        return
+      }
+
       const action = getCalendarKeyboardAction(event)
 
       if (!action) {
@@ -194,7 +223,7 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
     return () => {
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [today, view])
+  }, [showSettings, sidebarSettings.toggleShortcut, today, view])
 
   useEffect(() => {
     if (windowMode === 'panel') {
@@ -213,7 +242,9 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
         }
       } catch (error) {
         if (!cancelled) {
-          setShortcutError(error instanceof Error ? error.message : 'Unable to load global shortcut')
+          setShortcutError(
+            error instanceof Error ? error.message : 'Unable to load global shortcut'
+          )
         }
       }
     }
@@ -311,9 +342,7 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
         return
       } catch (error) {
         setGoogleCalendarError(getGoogleCalendarErrorMessage(error))
-        throw error instanceof Error
-          ? error
-          : new Error('Google Calendar event creation failed')
+        throw error instanceof Error ? error : new Error('Google Calendar event creation failed')
       }
     }
 
@@ -334,6 +363,31 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
 
       return nextHiddenCalendars
     })
+  }
+
+  const updateSidebarSettings = (
+    updater: SidebarSettings | ((currentSettings: SidebarSettings) => SidebarSettings)
+  ): void => {
+    setSidebarSettings((currentSettings) => {
+      const nextSettings = typeof updater === 'function' ? updater(currentSettings) : updater
+
+      saveSidebarSettings(getSidebarSettingsStorage(), nextSettings)
+      return nextSettings
+    })
+  }
+
+  const toggleSidebar = (): void => {
+    updateSidebarSettings((currentSettings) => ({
+      ...currentSettings,
+      sidebarVisible: !currentSettings.sidebarVisible
+    }))
+  }
+
+  const handleSidebarToggleShortcutChange = (toggleShortcut: ShortcutKeys | null): void => {
+    updateSidebarSettings((currentSettings) => ({
+      ...currentSettings,
+      toggleShortcut
+    }))
   }
 
   const openNewEvent = (defaults?: NewEventDraftDefaults): void => {
@@ -376,27 +430,36 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
     })()
   }
 
-  async function syncGoogleCalendarData(anchorDate: Date): Promise<void> {
-    const calendarsToLoad =
-      googleCalendars.length > 0 ? googleCalendars : await window.api.googleCalendar.listCalendars()
-    const syncRange = getGoogleCalendarSyncRange(anchorDate)
-    const eventBatches = await Promise.all(
-      calendarsToLoad.map((calendar) =>
-        window.api.googleCalendar.listEvents({
-          calendarId: calendar.id,
-          ...syncRange,
-          singleEvents: true
-        })
+  const syncGoogleCalendarData = useCallback(
+    async (anchorDate: Date): Promise<void> => {
+      const calendarsToLoad =
+        googleCalendars.length > 0
+          ? googleCalendars
+          : await window.api.googleCalendar.listCalendars()
+      const syncRange = getGoogleCalendarSyncRange(anchorDate)
+      const eventBatches = await Promise.all(
+        calendarsToLoad.map((calendar) =>
+          window.api.googleCalendar.listEvents({
+            calendarId: calendar.id,
+            ...syncRange,
+            singleEvents: true
+          })
+        )
       )
-    )
-    const presentation = buildGoogleCalendarPresentation(calendarsToLoad, eventBatches.flat())
+      const presentation = buildGoogleCalendarPresentation(calendarsToLoad, eventBatches.flat())
 
-    setGoogleCalendars(calendarsToLoad)
-    setCalendarOptions(
-      presentation.calendars.length > 0 ? presentation.calendars : DEFAULT_RENDERER_CALENDARS
-    )
-    setEvents(sortCalendarEvents(presentation.events))
-  }
+      setGoogleCalendars(calendarsToLoad)
+      setCalendarOptions(
+        presentation.calendars.length > 0 ? presentation.calendars : DEFAULT_RENDERER_CALENDARS
+      )
+      setEvents(sortCalendarEvents(presentation.events))
+    },
+    [googleCalendars]
+  )
+
+  const syncGoogleCalendarDataEffect = useEffectEvent(async (anchorDate: Date): Promise<void> => {
+    await syncGoogleCalendarData(anchorDate)
+  })
 
   const isGoogleLoginModalOpen =
     googleCalendarStatus !== null &&
@@ -439,6 +502,8 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
       <SettingsModal
         open={showSettings}
         onClose={() => setShowSettings(false)}
+        sidebarToggleShortcut={sidebarSettings.toggleShortcut}
+        onSidebarToggleShortcutChange={handleSidebarToggleShortcutChange}
         googleCalendarStatus={googleCalendarStatus}
         isConnectPending={isGoogleConnectPending}
         errorMessage={googleCalendarError}
@@ -455,17 +520,24 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
         onCreateEvent={handleCreateEvent}
         initialValues={newEventDefaults}
       />
-      <Sidebar
-        calendars={calendarOptions}
-        events={visibleEvents}
-        hiddenCalendars={hiddenCalendars}
-        currentDate={currentDate}
-        today={today}
-        view={view}
-        onDateSelect={handleDateSelect}
-        onToggleCalendarVisibility={handleToggleCalendarVisibility}
-        onOpenNewEvent={() => openNewEvent()}
-      />
+      <motion.div
+        animate={{ width: sidebarSettings.sidebarVisible ? 220 : 0 }}
+        transition={{ type: 'spring', stiffness: 320, damping: 30, mass: 0.9 }}
+        initial={false}
+        style={{ overflow: 'hidden', flexShrink: 0 }}
+      >
+        <Sidebar
+          calendars={calendarOptions}
+          events={visibleEvents}
+          hiddenCalendars={hiddenCalendars}
+          currentDate={currentDate}
+          today={today}
+          view={view}
+          onDateSelect={handleDateSelect}
+          onToggleCalendarVisibility={handleToggleCalendarVisibility}
+          onOpenNewEvent={() => openNewEvent()}
+        />
+      </motion.div>
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <TopBar
           view={view}
@@ -473,6 +545,8 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
           currentDate={currentDate}
           onPrev={() => navigate('prev')}
           onNext={() => navigate('next')}
+          sidebarVisible={sidebarSettings.sidebarVisible}
+          onSidebarToggle={toggleSidebar}
           onSettingsOpen={() => setShowSettings(true)}
         />
         <div className="flex-1 min-h-0 overflow-hidden">
@@ -516,6 +590,10 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
   )
 }
 
+function getSidebarSettingsStorage(): Storage | null {
+  return typeof window === 'undefined' ? null : window.localStorage
+}
+
 function sortCalendarEvents(events: CalendarEvent[]): CalendarEvent[] {
   return [...events].sort((left, right) => {
     const dateComparison = left.date.localeCompare(right.date)
@@ -549,7 +627,10 @@ function replaceEventInstances(
   ]
 }
 
-function removeEventInstances(events: CalendarEvent[], targetEvent: CalendarEvent): CalendarEvent[] {
+function removeEventInstances(
+  events: CalendarEvent[],
+  targetEvent: CalendarEvent
+): CalendarEvent[] {
   return events.filter((event) => !isSameEventInstanceGroup(event, targetEvent))
 }
 
