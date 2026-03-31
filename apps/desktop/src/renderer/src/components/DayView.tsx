@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { DragDropProvider, useDraggable, useDroppable } from '@dnd-kit/react'
 import {
   EVENT_COLORS,
@@ -14,7 +15,11 @@ import { computeAnchor } from '../lib/eventPopoverAnchor'
 import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
 import {
   buildAllDayDropSlotId,
+  type TimedSelectionRange,
   buildDropSlotId,
+  getTimedDragPreviewRange,
+  getTimedSelectionRange,
+  getTimedSlotStartMinutes,
   parseDropSlotId,
   rescheduleAllDayEvent,
   rescheduleTimedEvent,
@@ -25,7 +30,6 @@ import type { RendererCalendar } from '../lib/googleCalendarSync'
 import EventDetailPopover from './EventDetailPopover'
 
 const HOURS = buildCalendarHours(START_HOUR, END_HOUR)
-const SLOT_HEIGHT = (SNAP_MINUTES / 60) * HOUR_HEIGHT
 const SLOT_STARTS = Array.from(
   { length: ((END_HOUR - START_HOUR) * 60) / SNAP_MINUTES },
   (_, index) => START_HOUR * 60 + index * SNAP_MINUTES
@@ -83,9 +87,13 @@ function TimedEventCard({
   const short = height < 44
 
   return (
-    <div
+    <motion.div
       ref={elementRef}
       className="event-block"
+      initial={{ opacity: 0, y: 5 }}
+      animate={{ opacity: dragging ? 0.28 : 1, y: 0 }}
+      exit={{ opacity: 0, y: -3 }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
       onClick={(e) => {
         e.stopPropagation()
         onClick(e, event)
@@ -101,7 +109,6 @@ function TimedEventCard({
         outline: selected ? `1px solid ${color.dot}` : 'none',
         outlineOffset: -1,
         cursor: dragging ? 'grabbing' : 'grab',
-        opacity: dragging ? 0.28 : 1,
         zIndex: dragging ? 20 : selected ? 12 : 2,
         touchAction: 'none',
         boxShadow: dragging ? '0 10px 24px rgba(0,0,0,0.22)' : 'none'
@@ -116,7 +123,7 @@ function TimedEventCard({
       {!short && event.calendar && (
         <p className="text-[10px] mt-0.5 opacity-50">{event.calendar}</p>
       )}
-    </div>
+    </motion.div>
   )
 }
 
@@ -161,9 +168,13 @@ function AllDayEventPill({
   const color = EVENT_COLORS[event.color]
 
   return (
-    <div
+    <motion.div
       ref={elementRef}
       className="px-2 py-0.5 rounded text-[11px] font-medium"
+      initial={{ opacity: 0, x: -4 }}
+      animate={{ opacity: dragging ? 0.28 : 1, x: 0 }}
+      exit={{ opacity: 0, x: -4 }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
       onClick={(e) => {
         e.stopPropagation()
         onClick(e, event)
@@ -174,13 +185,12 @@ function AllDayEventPill({
         outline: selected ? `1px solid ${color.dot}` : 'none',
         outlineOffset: -1,
         cursor: dragging ? 'grabbing' : 'grab',
-        opacity: dragging ? 0.28 : 1,
         boxShadow: dragging ? '0 10px 24px rgba(0,0,0,0.22)' : 'none',
         touchAction: 'none'
       }}
     >
       {event.title}
-    </div>
+    </motion.div>
   )
 }
 
@@ -209,8 +219,27 @@ function DraggableAllDayEventPill({
   )
 }
 
-function DropSlot({ id, top }: { id: string; top: number }): React.JSX.Element {
+function DropSlot({
+  id,
+  startMinutes,
+  previewDurationMinutes
+}: {
+  id: string
+  startMinutes: number
+  previewDurationMinutes?: number
+}): React.JSX.Element {
   const { ref, isDropTarget } = useDroppable({ id })
+  const previewRange =
+    previewDurationMinutes !== undefined
+      ? getTimedDragPreviewRange(startMinutes, previewDurationMinutes)
+      : null
+  const top =
+    ((previewRange?.startMinutes ?? startMinutes) - START_HOUR * 60) / 60 * HOUR_HEIGHT
+  const height =
+    (((previewRange?.endMinutes ?? startMinutes + SNAP_MINUTES) -
+      (previewRange?.startMinutes ?? startMinutes)) /
+      60) *
+    HOUR_HEIGHT
 
   return (
     <div
@@ -220,7 +249,7 @@ function DropSlot({ id, top }: { id: string; top: number }): React.JSX.Element {
         left: 0,
         right: 0,
         top,
-        height: SLOT_HEIGHT,
+        height,
         pointerEvents: 'none',
         background: isDropTarget ? 'rgba(215,206,178,0.10)' : 'transparent',
         outline: isDropTarget ? '1px solid var(--accent-border)' : 'none',
@@ -257,6 +286,7 @@ interface DayViewProps {
   today: Date
   onEventChange: (event: CalendarEvent) => Promise<void> | void
   onEventDelete: (event: CalendarEvent) => Promise<void> | void
+  onTimedSelectionCreate: (date: Date, range: TimedSelectionRange) => void
 }
 
 export default function DayView({
@@ -265,7 +295,8 @@ export default function DayView({
   currentDate,
   today,
   onEventChange,
-  onEventDelete
+  onEventDelete,
+  onTimedSelectionCreate
 }: DayViewProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null)
   const suppressClickUntilRef = useRef(0)
@@ -273,6 +304,11 @@ export default function DayView({
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const [popoverAnchor, setPopoverAnchor] = useState<PopoverAnchor | null>(null)
   const [draggedEventId, setDraggedEventId] = useState<string | null>(null)
+  const [timedSelection, setTimedSelection] = useState<{
+    anchorMinutes: number
+    pointerId: number
+    range: TimedSelectionRange
+  } | null>(null)
   const isToday = isSameDay(currentDate, today)
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? null
 
@@ -337,6 +373,71 @@ export default function DayView({
     )
   }
 
+  const handleTimedGridPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
+    if (event.button !== 0 || draggedEventId) return
+    if (event.target instanceof Element && event.target.closest('.event-block')) return
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const anchorMinutes = getTimedSlotStartMinutes(event.clientY - rect.top)
+    const range = getTimedSelectionRange(anchorMinutes, anchorMinutes)
+
+    clearSelection()
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setTimedSelection({
+      anchorMinutes,
+      pointerId: event.pointerId,
+      range
+    })
+  }
+
+  const handleTimedGridPointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const currentMinutes = getTimedSlotStartMinutes(event.clientY - rect.top)
+
+    setTimedSelection((currentSelection) => {
+      if (!currentSelection || currentSelection.pointerId !== event.pointerId) {
+        return currentSelection
+      }
+
+      const range = getTimedSelectionRange(currentSelection.anchorMinutes, currentMinutes)
+
+      if (
+        range.startMinutes === currentSelection.range.startMinutes &&
+        range.endMinutes === currentSelection.range.endMinutes
+      ) {
+        return currentSelection
+      }
+
+      return {
+        ...currentSelection,
+        range
+      }
+    })
+  }
+
+  const finishTimedSelection = (
+    event: React.PointerEvent<HTMLDivElement>,
+    shouldCreate: boolean
+  ): void => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+
+    setTimedSelection((currentSelection) => {
+      if (!currentSelection || currentSelection.pointerId !== event.pointerId) {
+        return currentSelection
+      }
+
+      if (shouldCreate) {
+        suppressClickUntilRef.current = Date.now() + 250
+        onTimedSelectionCreate(currentDate, currentSelection.range)
+      }
+
+      return null
+    })
+  }
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = (8 - START_HOUR) * HOUR_HEIGHT - 8
@@ -353,6 +454,16 @@ export default function DayView({
     .filter((event) => event.date === dayStr && !event.allDay && event.startTime && event.endTime)
     .sort((a, b) => timeToMinutes(a.startTime!) - timeToMinutes(b.startTime!))
   const allDayEvents = events.filter((event) => event.date === dayStr && event.allDay)
+  const draggedTimedEvent = draggedEventId
+    ? events.find(
+        (event) =>
+          event.id === draggedEventId && !event.allDay && event.startTime && event.endTime
+      )
+    : null
+  const draggedTimedEventDurationMinutes =
+    draggedTimedEvent?.startTime && draggedTimedEvent.endTime
+      ? timeToMinutes(draggedTimedEvent.endTime) - timeToMinutes(draggedTimedEvent.startTime)
+      : undefined
 
   return (
     <DragDropProvider onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -425,16 +536,16 @@ export default function DayView({
             >
               All day
             </span>
-            {allDayEvents.map((event) => {
-              return (
+            <AnimatePresence>
+              {allDayEvents.map((event) => (
                 <DraggableAllDayEventPill
                   key={event.id}
                   event={event}
                   selected={selectedEventId === event.id}
                   onClick={handleEventClick}
                 />
-              )
-            })}
+              ))}
+            </AnimatePresence>
           </AllDayDropSlot>
         )}
 
@@ -463,6 +574,10 @@ export default function DayView({
                 height: (END_HOUR - START_HOUR) * HOUR_HEIGHT,
                 background: 'transparent'
               }}
+              onPointerDown={handleTimedGridPointerDown}
+              onPointerMove={handleTimedGridPointerMove}
+              onPointerUp={(event) => finishTimedSelection(event, true)}
+              onPointerCancel={(event) => finishTimedSelection(event, false)}
             >
               {HOURS.map((hour) => (
                 <div
@@ -482,18 +597,41 @@ export default function DayView({
                 <DropSlot
                   key={startMinutes}
                   id={buildDropSlotId('day', currentDate, startMinutes)}
-                  top={((startMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT}
+                  startMinutes={startMinutes}
+                  previewDurationMinutes={draggedTimedEventDurationMinutes}
                 />
               ))}
 
-              {timedEvents.map((event) => (
-                <DraggableEventBlock
-                  key={event.id}
-                  event={event}
-                  selected={selectedEventId === event.id}
-                  onClick={handleEventClick}
+              {timedSelection && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 4,
+                    right: 4,
+                    top: ((timedSelection.range.startMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT,
+                    height:
+                      ((timedSelection.range.endMinutes - timedSelection.range.startMinutes) / 60) *
+                      HOUR_HEIGHT,
+                    borderRadius: 4,
+                    background: 'rgba(215,206,178,0.20)',
+                    border: '1px solid var(--accent-border)',
+                    boxShadow: 'inset 0 0 0 1px rgba(215,206,178,0.12)',
+                    pointerEvents: 'none',
+                    zIndex: 3
+                  }}
                 />
-              ))}
+              )}
+
+              <AnimatePresence>
+                {timedEvents.map((event) => (
+                  <DraggableEventBlock
+                    key={event.id}
+                    event={event}
+                    selected={selectedEventId === event.id}
+                    onClick={handleEventClick}
+                  />
+                ))}
+              </AnimatePresence>
 
               {isToday && nowPx >= 0 && (
                 <div className="now-line" style={{ top: nowPx }}>
