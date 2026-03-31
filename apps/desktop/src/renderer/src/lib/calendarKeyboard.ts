@@ -1,9 +1,18 @@
 import type { ViewType } from '../components/TopBar'
+import {
+  normalizeShortcut,
+  normalizeShortcutKey,
+  parseShortcut,
+  serializeShortcut,
+  type ShortcutKeys
+} from '../../../shared/shortcuts'
 
 export type CalendarKeyboardAction =
   | { type: 'navigate'; direction: 'prev' | 'next' }
   | { type: 'set-view'; view: ViewType }
   | { type: 'go-to-today' }
+
+export type { ShortcutKeys, ShortcutModifier } from '../../../shared/shortcuts'
 
 export interface CalendarKeyboardEventLike {
   key: string
@@ -65,6 +74,30 @@ export function getCalendarKeyboardAction(
 export function getTodayAnchorDate(reference: Date): Date {
   return normalizeDate(reference)
 }
+
+export function matchesShortcut(
+  event: CalendarKeyboardEventLike,
+  shortcut: ShortcutKeys | null
+): boolean {
+  const normalizedShortcut = normalizeShortcut(shortcut)
+
+  if (
+    !normalizedShortcut ||
+    event.defaultPrevented ||
+    isEditableTarget(event.target) ||
+    normalizeShortcutKey(event.key) !== normalizedShortcut.key
+  ) {
+    return false
+  }
+
+  return (
+    event.metaKey === normalizedShortcut.modifiers.includes('Meta') &&
+    event.ctrlKey === normalizedShortcut.modifiers.includes('Control') &&
+    event.altKey === normalizedShortcut.modifiers.includes('Alt') &&
+    event.shiftKey === normalizedShortcut.modifiers.includes('Shift')
+  )
+}
+export { parseShortcut, serializeShortcut }
 
 function hasModifierKey(event: CalendarKeyboardEventLike): boolean {
   return event.altKey || event.ctrlKey || event.metaKey
