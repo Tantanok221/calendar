@@ -4,7 +4,11 @@ import { CaretLeft, CaretRight, Plus } from '@phosphor-icons/react'
 import { EVENT_COLORS, getWeekStart, isSameDay } from '../data/events'
 import type { CalendarEvent } from '../data/events'
 import type { ViewType } from './TopBar'
-import { DEFAULT_RENDERER_CALENDARS, type RendererCalendar } from '../lib/googleCalendarSync'
+import {
+  DEFAULT_RENDERER_CALENDARS,
+  partitionRendererCalendars,
+  type RendererCalendar
+} from '../lib/googleCalendarSync'
 
 const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
@@ -233,6 +237,7 @@ export default function Sidebar({
   onToggleCalendarVisibility,
   onOpenNewEvent
 }: SidebarProps): React.JSX.Element {
+  const { myCalendars, otherCalendars } = partitionRendererCalendars(calendars)
   return (
     <div
       className="flex flex-col shrink-0 overflow-y-auto"
@@ -277,27 +282,28 @@ export default function Sidebar({
 
       {/* Calendars */}
       <div className="px-3 py-2">
-        <p
-          className="text-[10px] font-semibold uppercase tracking-widest mb-1.5"
-          style={{ color: 'var(--text-dim)' }}
-        >
-          My Calendars
-        </p>
-        <div className="flex flex-col gap-0.5">
-          {calendars.map((cal) => (
-            <CalendarItem
-              key={cal.name}
-              label={cal.name}
-              dotColor={EVENT_COLORS[cal.color].dot}
-              isHidden={hiddenCalendars.has(cal.name)}
-              onToggle={() => onToggleCalendarVisibility(cal.name)}
-            />
-          ))}
-        </div>
+        {myCalendars.length > 0 && (
+          <>
+            <p
+              className="text-[10px] font-semibold uppercase tracking-widest mb-1.5"
+              style={{ color: 'var(--text-dim)' }}
+            >
+              My Calendars
+            </p>
+            <div className="flex flex-col gap-0.5">
+              {myCalendars.map((cal) => (
+                <CalendarItem
+                  key={cal.id}
+                  label={cal.name}
+                  dotColor={EVENT_COLORS[cal.color].dot}
+                  isHidden={hiddenCalendars.has(cal.name)}
+                  onToggle={() => onToggleCalendarVisibility(cal.name)}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </div>
-
-      {/* Divider */}
-      <div className="mx-3 my-1" style={{ height: 1, background: 'var(--border)' }} />
 
       {/* Other calendars */}
       <div className="px-3 py-2">
@@ -305,14 +311,25 @@ export default function Sidebar({
           className="text-[10px] font-semibold uppercase tracking-widest mb-1.5"
           style={{ color: 'var(--text-dim)' }}
         >
-          Other
+          Other Calendars
         </p>
-        <CalendarItem
-          label="Holidays"
-          dotColor="rgba(215,206,178,0.55)"
-          isHidden={hiddenCalendars.has('Holidays')}
-          onToggle={() => onToggleCalendarVisibility('Holidays')}
-        />
+        <div className="flex flex-col gap-0.5">
+          {otherCalendars.map((cal) => (
+            <CalendarItem
+              key={cal.id}
+              label={cal.name}
+              dotColor={EVENT_COLORS[cal.color].dot}
+              isHidden={hiddenCalendars.has(cal.name)}
+              onToggle={() => onToggleCalendarVisibility(cal.name)}
+            />
+          ))}
+          <CalendarItem
+            label="Holidays"
+            dotColor="rgba(215,206,178,0.55)"
+            isHidden={hiddenCalendars.has('Holidays')}
+            onToggle={() => onToggleCalendarVisibility('Holidays')}
+          />
+        </div>
       </div>
     </div>
   )

@@ -1,8 +1,11 @@
+import { writeFile } from 'node:fs/promises'
 import type {
   CreateGoogleCalendarEventInput,
+  DeleteGoogleCalendarEventInput,
   GoogleCalendarEvent,
   GoogleCalendarSummary,
   ListGoogleCalendarEventsInput,
+  MoveGoogleCalendarEventInput,
   RawGoogleCalendarEvent,
   RawGoogleCalendarListEntry,
   UpdateGoogleCalendarEventInput
@@ -17,6 +20,8 @@ interface GoogleApiRequestInput {
 interface FetchGoogleEventsInput extends GoogleApiRequestInput, ListGoogleCalendarEventsInput {}
 interface UpdateGoogleEventInput extends GoogleApiRequestInput, UpdateGoogleCalendarEventInput {}
 interface CreateGoogleEventInput extends GoogleApiRequestInput, CreateGoogleCalendarEventInput {}
+interface MoveGoogleEventInput extends GoogleApiRequestInput, MoveGoogleCalendarEventInput {}
+interface DeleteGoogleEventInput extends GoogleApiRequestInput, DeleteGoogleCalendarEventInput {}
 
 export async function fetchGoogleCalendars(input: GoogleApiRequestInput): Promise<GoogleCalendarSummary[]> {
   const url = `${input.apiBaseUrl}/users/me/calendarList`
@@ -28,14 +33,25 @@ export async function fetchGoogleCalendars(input: GoogleApiRequestInput): Promis
 
   const data = await parseGoogleJson<{ items?: RawGoogleCalendarListEntry[] }>(response)
 
+  try {
+    await writeFile('/tmp/google-calendar-list-debug.json', JSON.stringify(data.items ?? [], null, 2), 'utf8')
+  } catch {
+    // Best-effort debug dump for live investigation.
+  }
+
   return (data.items ?? []).map((calendar) => ({
     id: calendar.id,
     summary: calendar.summary ?? '',
+    summaryOverride: calendar.summaryOverride ?? null,
     description: calendar.description ?? null,
     primary: Boolean(calendar.primary),
     backgroundColor: calendar.backgroundColor ?? null,
     foregroundColor: calendar.foregroundColor ?? null,
-    timeZone: calendar.timeZone ?? null
+    timeZone: calendar.timeZone ?? null,
+    accessRole: calendar.accessRole ?? null,
+    dataOwner: calendar.dataOwner ?? null,
+    selected: calendar.selected ?? true,
+    hidden: calendar.hidden ?? false
   }))
 }
 
@@ -89,6 +105,7 @@ export async function updateGoogleCalendarEvent(
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
+        summary: input.summary,
         start: toGoogleDateTimePayload(input.start),
         end: toGoogleDateTimePayload(input.end)
       })
@@ -98,6 +115,45 @@ export async function updateGoogleCalendarEvent(
   const data = await parseGoogleJson<RawGoogleCalendarEvent>(response)
 
   return normalizeGoogleCalendarEvent(input.calendarId, data)
+}
+
+export async function moveGoogleCalendarEvent(
+  input: MoveGoogleEventInput
+): Promise<GoogleCalendarEvent> {
+  const calendarId = encodeURIComponent(input.calendarId)
+  const eventId = encodeURIComponent(input.eventId)
+  const destinationCalendarId = encodeURIComponent(input.destinationCalendarId)
+  const response = await (input.fetchImpl ?? fetch)(
+    `${input.apiBaseUrl}/calendars/${calendarId}/events/${eventId}/move?destination=${destinationCalendarId}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${input.accessToken}`
+      }
+    }
+  )
+
+  const data = await parseGoogleJson<RawGoogleCalendarEvent>(response)
+
+  return normalizeGoogleCalendarEvent(input.destinationCalendarId, data)
+}
+
+export async function deleteGoogleCalendarEvent(input: DeleteGoogleEventInput): Promise<void> {
+  const calendarId = encodeURIComponent(input.calendarId)
+  const eventId = encodeURIComponent(input.eventId)
+  const response = await (input.fetchImpl ?? fetch)(
+    `${input.apiBaseUrl}/calendars/${calendarId}/events/${eventId}`,
+    {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${input.accessToken}`
+      }
+    }
+  )
+
+  if (!response.ok) {
+    throw new Error(`Google Calendar API request failed with status ${response.status}: ${await response.text()}`)
+  }
 }
 
 export async function createGoogleCalendarEvent(

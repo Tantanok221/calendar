@@ -62,6 +62,8 @@ app.whenReady().then(async () => {
   ipcMain.handle('google-calendar:list-calendars', () => googleCalendarService.listCalendars())
   ipcMain.handle('google-calendar:list-events', (_, input) => googleCalendarService.listEvents(input))
   ipcMain.handle('google-calendar:update-event', (_, input) => googleCalendarService.updateEvent(input))
+  ipcMain.handle('google-calendar:move-event', (_, input) => googleCalendarService.moveEvent(input))
+  ipcMain.handle('google-calendar:delete-event', (_, input) => googleCalendarService.deleteEvent(input))
   ipcMain.handle('google-calendar:create-event', (_, input) => googleCalendarService.createEvent(input))
 
   createWindow()
