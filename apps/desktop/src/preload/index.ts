@@ -11,6 +11,8 @@ const api: DesktopApi = {
     listCalendars: () => ipcRenderer.invoke('google-calendar:list-calendars'),
     listEvents: (input) => ipcRenderer.invoke('google-calendar:list-events', input),
     updateEvent: (input) => ipcRenderer.invoke('google-calendar:update-event', input),
+    moveEvent: (input) => ipcRenderer.invoke('google-calendar:move-event', input),
+    deleteEvent: (input) => ipcRenderer.invoke('google-calendar:delete-event', input),
     createEvent: (input) => ipcRenderer.invoke('google-calendar:create-event', input)
   }
 }

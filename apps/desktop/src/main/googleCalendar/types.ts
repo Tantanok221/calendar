@@ -31,11 +31,16 @@ export interface GoogleCalendarConnectionStatus {
 export interface GoogleCalendarSummary {
   id: string
   summary: string
+  summaryOverride: string | null
   description: string | null
   primary: boolean
   backgroundColor: string | null
   foregroundColor: string | null
   timeZone: string | null
+  accessRole: string | null
+  dataOwner: string | null
+  selected: boolean
+  hidden: boolean
 }
 
 export interface GoogleCalendarEventDateTime {
@@ -60,8 +65,20 @@ export interface GoogleCalendarEvent {
 export interface UpdateGoogleCalendarEventInput {
   calendarId: string
   eventId: string
+  summary?: string
   start: GoogleCalendarEventDateTime
   end: GoogleCalendarEventDateTime
+}
+
+export interface MoveGoogleCalendarEventInput {
+  calendarId: string
+  eventId: string
+  destinationCalendarId: string
+}
+
+export interface DeleteGoogleCalendarEventInput {
+  calendarId: string
+  eventId: string
 }
 
 export interface CreateGoogleCalendarEventInput {
@@ -84,11 +101,16 @@ export interface ListGoogleCalendarEventsInput {
 export interface RawGoogleCalendarListEntry {
   id: string
   summary?: string
+  summaryOverride?: string
   description?: string
   primary?: boolean
   backgroundColor?: string
   foregroundColor?: string
   timeZone?: string
+  accessRole?: string
+  dataOwner?: string
+  selected?: boolean
+  hidden?: boolean
 }
 
 export interface RawGoogleCalendarEvent {

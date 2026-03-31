@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  buildGoogleCalendarDeleteFromRendererEvent,
+  buildGoogleCalendarSavePlan,
   buildGoogleCalendarUpdateFromRendererEvent,
   isGoogleBackedCalendarEvent
 } from './googleCalendarWriteback'
@@ -62,6 +64,7 @@ describe('buildGoogleCalendarUpdateFromRendererEvent', () => {
     ).toEqual({
       calendarId: 'primary',
       eventId: 'evt-1',
+      summary: 'Standup',
       start: {
         dateTime: '2026-03-30T09:00:00.000',
         date: null,
@@ -113,6 +116,7 @@ describe('buildGoogleCalendarUpdateFromRendererEvent', () => {
     ).toEqual({
       calendarId: 'primary',
       eventId: 'evt-2',
+      summary: 'Offsite',
       start: {
         dateTime: null,
         date: '2026-03-30',
@@ -123,6 +127,91 @@ describe('buildGoogleCalendarUpdateFromRendererEvent', () => {
         date: '2026-03-31',
         timeZone: null
       }
+    })
+  })
+
+  test('builds a save plan that patches first and moves calendars when needed', () => {
+    expect(
+      buildGoogleCalendarSavePlan(
+        {
+          id: 'google:primary:evt-1',
+          title: 'Standup',
+          date: '2026-03-30',
+          startTime: '09:00',
+          endTime: '09:30',
+          allDay: false,
+          color: 'violet',
+          calendar: 'Work',
+          source: {
+            provider: 'google',
+            calendarId: 'primary',
+            eventId: 'evt-1',
+            timeZone: 'Asia/Kuala_Lumpur'
+          }
+        },
+        {
+          id: 'google:primary:evt-1',
+          title: 'Standup moved',
+          date: '2026-03-31',
+          startTime: '10:00',
+          endTime: '10:30',
+          allDay: false,
+          color: 'green',
+          calendar: 'Team',
+          source: {
+            provider: 'google',
+            calendarId: 'team',
+            eventId: 'evt-1',
+            timeZone: 'Asia/Kuala_Lumpur'
+          }
+        }
+      )
+    ).toEqual({
+      update: {
+        calendarId: 'primary',
+        eventId: 'evt-1',
+        summary: 'Standup moved',
+        start: {
+          dateTime: '2026-03-31T10:00:00.000',
+          date: null,
+          timeZone: 'Asia/Kuala_Lumpur'
+        },
+        end: {
+          dateTime: '2026-03-31T10:30:00.000',
+          date: null,
+          timeZone: 'Asia/Kuala_Lumpur'
+        }
+      },
+      move: {
+        calendarId: 'primary',
+        eventId: 'evt-1',
+        destinationCalendarId: 'team'
+      }
+    })
+  })
+})
+
+describe('buildGoogleCalendarDeleteFromRendererEvent', () => {
+  test('builds the delete payload for Google-backed events', () => {
+    expect(
+      buildGoogleCalendarDeleteFromRendererEvent({
+        id: 'google:primary:evt-1',
+        title: 'Standup',
+        date: '2026-03-30',
+        startTime: '09:00',
+        endTime: '09:30',
+        color: 'violet',
+        calendar: 'Work',
+        source: {
+          provider: 'google',
+          calendarId: 'primary',
+          eventId: 'evt-1',
+          timeZone: 'Asia/Kuala_Lumpur'
+        }
+      })
+    ).toEqual({
+      calendarId: 'primary',
+      eventId: 'evt-1'
     })
   })
 })
