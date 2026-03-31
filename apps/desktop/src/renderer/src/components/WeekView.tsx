@@ -38,6 +38,7 @@ import EventDetailPopover from './EventDetailPopover'
 
 const HOURS = buildCalendarHours(START_HOUR, END_HOUR)
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const WEEK_GRID_TEMPLATE_COLUMNS = 'var(--time-col-w) repeat(7, minmax(0, 1fr))'
 const SLOT_STARTS = Array.from(
   { length: ((END_HOUR - START_HOUR) * 60) / SNAP_MINUTES },
   (_, index) => START_HOUR * 60 + index * SNAP_MINUTES
@@ -646,7 +647,7 @@ export default function WeekView({
           className="shrink-0"
           style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}
         >
-          <div className="grid" style={{ gridTemplateColumns: `var(--time-col-w) repeat(7, 1fr)` }}>
+          <div className="grid" style={{ gridTemplateColumns: WEEK_GRID_TEMPLATE_COLUMNS }}>
             <div />
             {days.map((day, index) => {
               const isToday = isSameDay(day, today)
@@ -683,7 +684,7 @@ export default function WeekView({
             <div
               className="grid"
               style={{
-                gridTemplateColumns: `var(--time-col-w) repeat(7, 1fr)`,
+                gridTemplateColumns: WEEK_GRID_TEMPLATE_COLUMNS,
                 borderTop: '1px solid var(--border)'
               }}
             >
@@ -691,7 +692,7 @@ export default function WeekView({
                 className="flex items-start justify-end pr-2 pt-1"
                 style={{ color: 'var(--text-dim)' }}
               >
-                <span className="text-[9px] uppercase tracking-wider">all‑day</span>
+                <span className="text-[9px] uppercase tracking-wider">ALL DAY</span>
               </div>
               {days.map((day) => {
                 const dayEvents = allDayEvents(day)
@@ -719,7 +720,7 @@ export default function WeekView({
         </div>
 
         <div className="time-grid-scroll" ref={scrollRef}>
-          <div className="grid" style={{ gridTemplateColumns: `var(--time-col-w) repeat(7, 1fr)` }}>
+          <div className="grid" style={{ gridTemplateColumns: WEEK_GRID_TEMPLATE_COLUMNS }}>
             <div className="relative" style={{ height: (END_HOUR - START_HOUR) * HOUR_HEIGHT }}>
               {HOURS.map((hour, index) => (
                 <span
