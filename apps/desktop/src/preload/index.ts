@@ -14,6 +14,11 @@ const api: DesktopApi = {
     moveEvent: (input) => ipcRenderer.invoke('google-calendar:move-event', input),
     deleteEvent: (input) => ipcRenderer.invoke('google-calendar:delete-event', input),
     createEvent: (input) => ipcRenderer.invoke('google-calendar:create-event', input)
+  },
+  shortcuts: {
+    getFloatingSidebarShortcut: () => ipcRenderer.invoke('shortcuts:get-floating-sidebar-shortcut'),
+    setFloatingSidebarShortcut: (shortcut) =>
+      ipcRenderer.invoke('shortcuts:set-floating-sidebar-shortcut', shortcut)
   }
 }
 
