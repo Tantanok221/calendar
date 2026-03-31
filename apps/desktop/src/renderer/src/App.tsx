@@ -6,6 +6,7 @@ import WeekView from './components/WeekView'
 import DayView from './components/DayView'
 import GoogleCalendarLoginModal from './components/GoogleCalendarLoginModal'
 import SettingsModal from './components/SettingsModal'
+import NewEventPopover from './components/NewEventPopover'
 import { EVENTS, isSameDay } from './data/events'
 import type { CalendarEvent } from './data/events'
 import type { ViewType } from './components/TopBar'
@@ -33,6 +34,11 @@ import {
   type CreateCalendarEventDraft
 } from './lib/googleCalendarCreate'
 import { getToday, useToday } from './lib/today'
+import {
+  buildTimedDraftFromSelection,
+  type NewEventDraftDefaults,
+  type TimedSelectionRange
+} from './lib/calendarDrag'
 
 const DEFAULT_EVENTS = EVENTS.map((event) => ({ ...event }))
 
@@ -52,6 +58,11 @@ function App(): React.JSX.Element {
   const [isGoogleConnectPending, setIsGoogleConnectPending] = useState(false)
   const [googleCalendarError, setGoogleCalendarError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [showNewEvent, setShowNewEvent] = useState(false)
+  const [newEventKey, setNewEventKey] = useState(0)
+  const [newEventDefaults, setNewEventDefaults] = useState<NewEventDraftDefaults | undefined>(
+    undefined
+  )
   const previousTodayRef = useRef(today)
 
   useEffect(() => {
@@ -219,6 +230,16 @@ function App(): React.JSX.Element {
     )
   }
 
+  const openNewEvent = (defaults?: NewEventDraftDefaults): void => {
+    setNewEventDefaults(defaults)
+    setNewEventKey((value) => value + 1)
+    setShowNewEvent(true)
+  }
+
+  const handleTimedSelectionCreate = (date: Date, range: TimedSelectionRange): void => {
+    openNewEvent(buildTimedDraftFromSelection(date, range))
+  }
+
   const handleGoogleCalendarConnect = async (): Promise<void> => {
     setIsGoogleConnectPending(true)
     setGoogleCalendarError(null)
@@ -277,6 +298,14 @@ function App(): React.JSX.Element {
         errorMessage={googleCalendarError}
         onGoogleConnect={handleGoogleCalendarConnect}
       />
+      <NewEventPopover
+        key={newEventKey}
+        open={showNewEvent}
+        onClose={() => setShowNewEvent(false)}
+        calendars={calendarOptions}
+        onCreateEvent={handleCreateEvent}
+        initialValues={newEventDefaults}
+      />
       <Sidebar
         calendars={calendarOptions}
         events={events}
@@ -284,7 +313,7 @@ function App(): React.JSX.Element {
         today={today}
         view={view}
         onDateSelect={handleDateSelect}
-        onCreateEvent={handleCreateEvent}
+        onOpenNewEvent={() => openNewEvent()}
       />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <TopBar
@@ -311,6 +340,7 @@ function App(): React.JSX.Element {
               today={today}
               onDateSelect={handleDateSelect}
               onEventChange={handleEventChange}
+              onTimedSelectionCreate={handleTimedSelectionCreate}
             />
           )}
           {view === 'day' && (
@@ -319,6 +349,7 @@ function App(): React.JSX.Element {
               currentDate={currentDate}
               today={today}
               onEventChange={handleEventChange}
+              onTimedSelectionCreate={handleTimedSelectionCreate}
             />
           )}
         </div>
