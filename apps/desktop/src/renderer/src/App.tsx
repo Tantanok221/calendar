@@ -6,7 +6,7 @@ import WeekView from './components/WeekView'
 import DayView from './components/DayView'
 import GoogleCalendarLoginModal from './components/GoogleCalendarLoginModal'
 import SettingsModal from './components/SettingsModal'
-import { EVENTS, isSameDay } from './data/events'
+import { EVENTS, fromDateStr, isSameDay } from './data/events'
 import type { CalendarEvent } from './data/events'
 import type { ViewType } from './components/TopBar'
 import type {
@@ -24,7 +24,8 @@ import {
   type RendererCalendar
 } from './lib/googleCalendarSync'
 import {
-  buildGoogleCalendarUpdateFromRendererEvent,
+  buildGoogleCalendarDeleteFromRendererEvent,
+  buildGoogleCalendarSavePlan,
   isGoogleBackedCalendarEvent
 } from './lib/googleCalendarWriteback'
 import {
@@ -179,50 +180,72 @@ function App(): React.JSX.Element {
     if (view !== 'day') setView('day')
   }
 
-  const handleEventChange = (updatedEvent: CalendarEvent): void => {
+  const handleEventChange = async (updatedEvent: CalendarEvent): Promise<void> => {
     const previousEvent = events.find((event) => event.id === updatedEvent.id)
 
-    setEvents((currentEvents) =>
-      sortCalendarEvents(
-        currentEvents.map((event) => (event.id === updatedEvent.id ? updatedEvent : event))
-      )
-    )
-
-    const googleUpdate = buildGoogleCalendarUpdateFromRendererEvent(updatedEvent)
-
-    if (!googleUpdate || !isGoogleBackedCalendarEvent(updatedEvent)) {
+    if (!previousEvent) {
       return
     }
 
-    void (async () => {
-      try {
-        const remoteEvent = await window.api.googleCalendar.updateEvent(googleUpdate)
-        const mappedEvent = buildGoogleCalendarPresentation(googleCalendars, [remoteEvent]).events[0]
+    setCurrentDate(fromDateStr(updatedEvent.date))
 
-        if (!mappedEvent) {
-          return
-        }
+    setEvents((currentEvents) =>
+      sortCalendarEvents(replaceEventInstances(currentEvents, previousEvent, [updatedEvent]))
+    )
 
-        setEvents((currentEvents) =>
-          sortCalendarEvents(
-            currentEvents.map((event) => (event.id === updatedEvent.id ? mappedEvent : event))
-          )
-        )
-      } catch (error) {
-        if (previousEvent) {
-          setEvents((currentEvents) =>
-            sortCalendarEvents(
-              currentEvents.map((event) =>
-                event.id === previousEvent.id ? previousEvent : event
-              )
-            )
-          )
-        }
+    if (!isGoogleBackedCalendarEvent(updatedEvent) || !isGoogleBackedCalendarEvent(previousEvent)) {
+      return
+    }
 
-        setGoogleCalendarError(getGoogleCalendarErrorMessage(error))
-        console.error(error)
+    try {
+      const savePlan = buildGoogleCalendarSavePlan(previousEvent, updatedEvent)
+
+      if (!savePlan) {
+        return
       }
-    })()
+
+      let remoteEvent = await window.api.googleCalendar.updateEvent(savePlan.update)
+
+      if (savePlan.move) {
+        remoteEvent = await window.api.googleCalendar.moveEvent(savePlan.move)
+      }
+
+      const mappedEvents = buildGoogleCalendarPresentation(googleCalendars, [remoteEvent]).events
+
+      setEvents((currentEvents) =>
+        sortCalendarEvents(replaceEventInstances(currentEvents, updatedEvent, mappedEvents))
+      )
+    } catch (error) {
+      setEvents((currentEvents) =>
+        sortCalendarEvents(replaceEventInstances(currentEvents, updatedEvent, [previousEvent]))
+      )
+
+      setGoogleCalendarError(getGoogleCalendarErrorMessage(error))
+      console.error(error)
+    }
+  }
+
+  const handleEventDelete = async (eventToDelete: CalendarEvent): Promise<void> => {
+    const previousEvents = events
+
+    setEvents((currentEvents) =>
+      sortCalendarEvents(removeEventInstances(currentEvents, eventToDelete))
+    )
+
+    const googleDelete = buildGoogleCalendarDeleteFromRendererEvent(eventToDelete)
+
+    if (!googleDelete) {
+      return
+    }
+
+    try {
+      await window.api.googleCalendar.deleteEvent(googleDelete)
+    } catch (error) {
+      setEvents(previousEvents)
+      setGoogleCalendarError(getGoogleCalendarErrorMessage(error))
+      console.error(error)
+      throw error
+    }
   }
 
   const handleCreateEvent = async (draft: CreateCalendarEventDraft): Promise<void> => {
@@ -329,26 +352,33 @@ function App(): React.JSX.Element {
           {view === 'month' && (
             <MonthView
               events={events}
+              calendars={calendarOptions}
               currentDate={currentDate}
               today={today}
               onDateSelect={handleDateSelect}
+              onEventChange={handleEventChange}
+              onEventDelete={handleEventDelete}
             />
           )}
           {view === 'week' && (
             <WeekView
               events={events}
+              calendars={calendarOptions}
               currentDate={currentDate}
               today={today}
               onDateSelect={handleDateSelect}
               onEventChange={handleEventChange}
+              onEventDelete={handleEventDelete}
             />
           )}
           {view === 'day' && (
             <DayView
               events={events}
+              calendars={calendarOptions}
               currentDate={currentDate}
               today={today}
               onEventChange={handleEventChange}
+              onEventDelete={handleEventDelete}
             />
           )}
         </div>
@@ -377,6 +407,32 @@ function sortCalendarEvents(events: CalendarEvent[]): CalendarEvent[] {
 
     return left.title.localeCompare(right.title)
   })
+}
+
+function replaceEventInstances(
+  events: CalendarEvent[],
+  targetEvent: CalendarEvent,
+  replacements: CalendarEvent[]
+): CalendarEvent[] {
+  return [
+    ...events.filter((event) => !isSameEventInstanceGroup(event, targetEvent)),
+    ...replacements
+  ]
+}
+
+function removeEventInstances(events: CalendarEvent[], targetEvent: CalendarEvent): CalendarEvent[] {
+  return events.filter((event) => !isSameEventInstanceGroup(event, targetEvent))
+}
+
+function isSameEventInstanceGroup(left: CalendarEvent, right: CalendarEvent): boolean {
+  if (left.source?.provider === 'google' && right.source?.provider === 'google') {
+    return (
+      left.source.calendarId === right.source.calendarId &&
+      left.source.eventId === right.source.eventId
+    )
+  }
+
+  return left.id === right.id
 }
 
 export default App

@@ -3,6 +3,7 @@ import { EVENT_COLORS, isSameDay, toDateStr } from '../data/events'
 import type { CalendarEvent } from '../data/events'
 import { computeAnchor } from '../lib/eventPopoverAnchor'
 import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
+import type { RendererCalendar } from '../lib/googleCalendarSync'
 import EventDetailPopover from './EventDetailPopover'
 
 const DOW_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -53,16 +54,22 @@ function EventPill({
 
 interface MonthViewProps {
   events: CalendarEvent[]
+  calendars: RendererCalendar[]
   currentDate: Date
   today: Date
   onDateSelect: (d: Date) => void
+  onEventChange: (event: CalendarEvent) => Promise<void> | void
+  onEventDelete: (event: CalendarEvent) => Promise<void> | void
 }
 
 export default function MonthView({
   events,
+  calendars,
   currentDate,
   today,
-  onDateSelect
+  onDateSelect,
+  onEventChange,
+  onEventDelete
 }: MonthViewProps): React.JSX.Element {
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
@@ -98,6 +105,9 @@ export default function MonthView({
         <EventDetailPopover
           event={selectedEvent}
           anchor={popoverAnchor}
+          calendars={calendars}
+          onSave={onEventChange}
+          onDelete={onEventDelete}
           onClose={() => {
             setSelectedEventId(null)
             setPopoverAnchor(null)

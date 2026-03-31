@@ -22,6 +22,7 @@ import {
   SNAP_MINUTES
 } from '../lib/calendarDrag'
 import { buildCalendarHours, formatCalendarHour } from '../lib/calendarHours'
+import type { RendererCalendar } from '../lib/googleCalendarSync'
 import EventDetailPopover from './EventDetailPopover'
 
 const HOURS = buildCalendarHours(START_HOUR, END_HOUR)
@@ -248,18 +249,22 @@ function AllDayDropSlot({ id, children }: { id: string; children: React.ReactNod
 
 interface WeekViewProps {
   events: CalendarEvent[]
+  calendars: RendererCalendar[]
   currentDate: Date
   today: Date
   onDateSelect: (d: Date) => void
-  onEventChange: (event: CalendarEvent) => void
+  onEventChange: (event: CalendarEvent) => Promise<void> | void
+  onEventDelete: (event: CalendarEvent) => Promise<void> | void
 }
 
 export default function WeekView({
   events,
+  calendars,
   currentDate,
   today,
   onDateSelect,
-  onEventChange
+  onEventChange,
+  onEventDelete
 }: WeekViewProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null)
   const suppressClickUntilRef = useRef(0)
@@ -368,6 +373,9 @@ export default function WeekView({
           <EventDetailPopover
             event={selectedEvent}
             anchor={popoverAnchor}
+            calendars={calendars}
+            onSave={onEventChange}
+            onDelete={onEventDelete}
             onClose={() => {
               clearSelection()
             }}

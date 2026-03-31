@@ -21,6 +21,7 @@ import {
   SNAP_MINUTES
 } from '../lib/calendarDrag'
 import { buildCalendarHours, formatCalendarHour } from '../lib/calendarHours'
+import type { RendererCalendar } from '../lib/googleCalendarSync'
 import EventDetailPopover from './EventDetailPopover'
 
 const HOURS = buildCalendarHours(START_HOUR, END_HOUR)
@@ -251,16 +252,20 @@ function AllDayDropSlot({ id, children }: { id: string; children: React.ReactNod
 
 interface DayViewProps {
   events: CalendarEvent[]
+  calendars: RendererCalendar[]
   currentDate: Date
   today: Date
-  onEventChange: (event: CalendarEvent) => void
+  onEventChange: (event: CalendarEvent) => Promise<void> | void
+  onEventDelete: (event: CalendarEvent) => Promise<void> | void
 }
 
 export default function DayView({
   events,
+  calendars,
   currentDate,
   today,
-  onEventChange
+  onEventChange,
+  onEventDelete
 }: DayViewProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null)
   const suppressClickUntilRef = useRef(0)
@@ -362,6 +367,9 @@ export default function DayView({
           <EventDetailPopover
             event={selectedEvent}
             anchor={popoverAnchor}
+            calendars={calendars}
+            onSave={onEventChange}
+            onDelete={onEventDelete}
             onClose={() => {
               clearSelection()
             }}
