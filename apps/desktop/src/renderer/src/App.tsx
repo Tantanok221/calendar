@@ -33,6 +33,7 @@ import {
   buildLocalEventsFromDraft,
   type CreateCalendarEventDraft
 } from './lib/googleCalendarCreate'
+import { filterVisibleCalendarEvents } from './lib/calendarVisibility'
 import {
   getCalendarKeyboardAction,
   getNavigatedDate,
@@ -63,6 +64,7 @@ function App(): React.JSX.Element {
   const [isGoogleConnectPending, setIsGoogleConnectPending] = useState(false)
   const [googleCalendarError, setGoogleCalendarError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [hiddenCalendars, setHiddenCalendars] = useState<Set<string>>(new Set())
   const [showNewEvent, setShowNewEvent] = useState(false)
   const [newEventKey, setNewEventKey] = useState(0)
   const [newEventDefaults, setNewEventDefaults] = useState<NewEventDraftDefaults | undefined>(
@@ -260,6 +262,20 @@ function App(): React.JSX.Element {
     )
   }
 
+  const handleToggleCalendarVisibility = (name: string): void => {
+    setHiddenCalendars((currentHiddenCalendars) => {
+      const nextHiddenCalendars = new Set(currentHiddenCalendars)
+
+      if (nextHiddenCalendars.has(name)) {
+        nextHiddenCalendars.delete(name)
+      } else {
+        nextHiddenCalendars.add(name)
+      }
+
+      return nextHiddenCalendars
+    })
+  }
+
   const openNewEvent = (defaults?: NewEventDraftDefaults): void => {
     setNewEventDefaults(defaults)
     setNewEventKey((value) => value + 1)
@@ -310,6 +326,7 @@ function App(): React.JSX.Element {
   const isGoogleLoginModalOpen =
     googleCalendarStatus !== null &&
     shouldOpenGoogleCalendarLoginModal(googleCalendarStatus, isGoogleLoginDismissed)
+  const visibleEvents = filterVisibleCalendarEvents(events, hiddenCalendars)
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg)' }}>
@@ -338,11 +355,13 @@ function App(): React.JSX.Element {
       />
       <Sidebar
         calendars={calendarOptions}
-        events={events}
+        events={visibleEvents}
+        hiddenCalendars={hiddenCalendars}
         currentDate={currentDate}
         today={today}
         view={view}
         onDateSelect={handleDateSelect}
+        onToggleCalendarVisibility={handleToggleCalendarVisibility}
         onOpenNewEvent={() => openNewEvent()}
       />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
@@ -357,7 +376,7 @@ function App(): React.JSX.Element {
         <div className="flex-1 min-h-0 overflow-hidden">
           {view === 'month' && (
             <MonthView
-              events={events}
+              events={visibleEvents}
               currentDate={currentDate}
               today={today}
               onDateSelect={handleDateSelect}
@@ -365,7 +384,7 @@ function App(): React.JSX.Element {
           )}
           {view === 'week' && (
             <WeekView
-              events={events}
+              events={visibleEvents}
               currentDate={currentDate}
               today={today}
               onDateSelect={handleDateSelect}
@@ -375,7 +394,7 @@ function App(): React.JSX.Element {
           )}
           {view === 'day' && (
             <DayView
-              events={events}
+              events={visibleEvents}
               currentDate={currentDate}
               today={today}
               onEventChange={handleEventChange}
