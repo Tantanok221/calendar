@@ -240,7 +240,7 @@ export default function Sidebar({
   const { myCalendars, otherCalendars } = partitionRendererCalendars(calendars)
   return (
     <div
-      className="flex flex-col shrink-0 overflow-y-auto"
+      className="flex h-full min-h-0 flex-col shrink-0 overflow-y-auto"
       style={{
         width: 'var(--sidebar-w)',
         borderRight: '1px solid var(--border)',
