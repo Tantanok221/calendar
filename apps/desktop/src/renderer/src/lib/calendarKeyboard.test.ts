@@ -12,6 +12,17 @@ describe('calendar keyboard shortcuts', () => {
     )
   })
 
+  test('uses day navigation in the floating panel even if the main view is week', () => {
+    expect(typeof (calendarKeyboard as Record<string, unknown>).getEffectiveView).toBe('function')
+
+    const getEffectiveView = (calendarKeyboard as Record<string, (...args: unknown[]) => unknown>)
+      .getEffectiveView
+
+    expect(getEffectiveView('week', 'panel')).toBe('day')
+    expect(getEffectiveView('month', 'panel')).toBe('day')
+    expect(getEffectiveView('week', 'main')).toBe('week')
+  })
+
   test('maps arrow keys, view shortcuts, and today to actions', () => {
     expect(getCalendarKeyboardAction(createKeyboardEventLike('ArrowLeft'))).toEqual({
       type: 'navigate',
