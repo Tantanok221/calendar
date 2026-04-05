@@ -2,14 +2,15 @@ import { describe, expect, test } from 'bun:test'
 import { GOOGLE_CALENDAR_SCOPES, readGoogleCalendarConfig } from './config'
 
 describe('readGoogleCalendarConfig', () => {
-  test('returns null when the client id is not configured', () => {
-    expect(readGoogleCalendarConfig({})).toBeNull()
+  test('returns null when the bundled client id is not configured', () => {
+    expect(readGoogleCalendarConfig({ clientId: null, clientSecret: null })).toBeNull()
   })
 
-  test('builds the default desktop config from environment variables', () => {
+  test('builds the default desktop config from bundled values', () => {
     expect(
       readGoogleCalendarConfig({
-        GOOGLE_CALENDAR_CLIENT_ID: 'desktop-client-id.apps.googleusercontent.com'
+        clientId: 'desktop-client-id.apps.googleusercontent.com',
+        clientSecret: null
       })
     ).toEqual({
       clientId: 'desktop-client-id.apps.googleusercontent.com',
@@ -22,11 +23,11 @@ describe('readGoogleCalendarConfig', () => {
     })
   })
 
-  test('includes an optional client secret when configured', () => {
+  test('includes an optional bundled client secret when configured', () => {
     expect(
       readGoogleCalendarConfig({
-        GOOGLE_CALENDAR_CLIENT_ID: 'desktop-client-id.apps.googleusercontent.com',
-        GOOGLE_CALENDAR_CLIENT_SECRET: 'desktop-client-secret'
+        clientId: 'desktop-client-id.apps.googleusercontent.com',
+        clientSecret: 'desktop-client-secret'
       })
     ).toEqual({
       clientId: 'desktop-client-id.apps.googleusercontent.com',

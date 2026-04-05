@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { app, safeStorage, shell } from 'electron'
-import { GOOGLE_CALENDAR_CALLBACK_PATH, readGoogleCalendarConfig } from './config'
+import { GOOGLE_CALENDAR_CALLBACK_PATH, loadGoogleCalendarConfig } from './config'
 import {
   createGoogleCalendarEvent,
   deleteGoogleCalendarEvent,
@@ -47,7 +47,11 @@ export class GoogleCalendarService {
   })
 
   async getStatus(): Promise<GoogleCalendarConnectionStatus> {
-    const config = readGoogleCalendarConfig(process.env)
+    const config = await loadGoogleCalendarConfig({
+      isPackaged: app.isPackaged,
+      mainFile: __dirname,
+      resourcesPath: process.resourcesPath
+    })
 
     if (!config) {
       return {
@@ -93,7 +97,11 @@ export class GoogleCalendarService {
   }
 
   async connect(): Promise<GoogleCalendarConnectionStatus> {
-    const config = readGoogleCalendarConfig(process.env)
+    const config = await loadGoogleCalendarConfig({
+      isPackaged: app.isPackaged,
+      mainFile: __dirname,
+      resourcesPath: process.resourcesPath
+    })
 
     if (!config) {
       throw new Error('GOOGLE_CALENDAR_CLIENT_ID is not configured')
@@ -209,7 +217,11 @@ export class GoogleCalendarService {
   }
 
   async listCalendars(): Promise<GoogleCalendarSummary[]> {
-    const config = readGoogleCalendarConfig(process.env)
+    const config = await loadGoogleCalendarConfig({
+      isPackaged: app.isPackaged,
+      mainFile: __dirname,
+      resourcesPath: process.resourcesPath
+    })
 
     if (!config) {
       throw new Error('GOOGLE_CALENDAR_CLIENT_ID is not configured')
@@ -224,7 +236,11 @@ export class GoogleCalendarService {
   }
 
   async listEvents(input: ListGoogleCalendarEventsInput = {}): Promise<GoogleCalendarEvent[]> {
-    const config = readGoogleCalendarConfig(process.env)
+    const config = await loadGoogleCalendarConfig({
+      isPackaged: app.isPackaged,
+      mainFile: __dirname,
+      resourcesPath: process.resourcesPath
+    })
 
     if (!config) {
       throw new Error('GOOGLE_CALENDAR_CLIENT_ID is not configured')
@@ -240,7 +256,11 @@ export class GoogleCalendarService {
   }
 
   async updateEvent(input: UpdateGoogleCalendarEventInput): Promise<GoogleCalendarEvent> {
-    const config = readGoogleCalendarConfig(process.env)
+    const config = await loadGoogleCalendarConfig({
+      isPackaged: app.isPackaged,
+      mainFile: __dirname,
+      resourcesPath: process.resourcesPath
+    })
 
     if (!config) {
       throw new Error('GOOGLE_CALENDAR_CLIENT_ID is not configured')
@@ -256,7 +276,11 @@ export class GoogleCalendarService {
   }
 
   async moveEvent(input: MoveGoogleCalendarEventInput): Promise<GoogleCalendarEvent> {
-    const config = readGoogleCalendarConfig(process.env)
+    const config = await loadGoogleCalendarConfig({
+      isPackaged: app.isPackaged,
+      mainFile: __dirname,
+      resourcesPath: process.resourcesPath
+    })
 
     if (!config) {
       throw new Error('GOOGLE_CALENDAR_CLIENT_ID is not configured')
@@ -272,7 +296,11 @@ export class GoogleCalendarService {
   }
 
   async deleteEvent(input: DeleteGoogleCalendarEventInput): Promise<void> {
-    const config = readGoogleCalendarConfig(process.env)
+    const config = await loadGoogleCalendarConfig({
+      isPackaged: app.isPackaged,
+      mainFile: __dirname,
+      resourcesPath: process.resourcesPath
+    })
 
     if (!config) {
       throw new Error('GOOGLE_CALENDAR_CLIENT_ID is not configured')
@@ -288,7 +316,11 @@ export class GoogleCalendarService {
   }
 
   async createEvent(input: CreateGoogleCalendarEventInput): Promise<GoogleCalendarEvent> {
-    const config = readGoogleCalendarConfig(process.env)
+    const config = await loadGoogleCalendarConfig({
+      isPackaged: app.isPackaged,
+      mainFile: __dirname,
+      resourcesPath: process.resourcesPath
+    })
 
     if (!config) {
       throw new Error('GOOGLE_CALENDAR_CLIENT_ID is not configured')

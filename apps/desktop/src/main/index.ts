@@ -3,7 +3,6 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { GoogleCalendarService } from './googleCalendar/service'
-import { loadDesktopRootEnv, resolveDesktopDirFromMainFile } from './env'
 import {
   FileDesktopShortcutStore,
   toElectronAccelerator,
@@ -125,9 +124,7 @@ function createPanelWindow(): BrowserWindow {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
-  await loadDesktopRootEnv(resolveDesktopDirFromMainFile(__dirname))
-
-  electronApp.setAppUserModelId('com.calendar.desktop')
+  electronApp.setAppUserModelId('com.stride.desktop')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)

@@ -1,8 +1,8 @@
 {
-  "name": "@calendar/desktop",
+  "name": "@stride/desktop",
   "private": true,
   "version": "1.0.0",
-  "description": "A desktop calendar application built with Electron, React, TypeScript, and Bun",
+  "description": "The Stride desktop app built with Electron, React, TypeScript, and Bun",
   "main": "./out/main/index.js",
   "author": "",
   "scripts": {
