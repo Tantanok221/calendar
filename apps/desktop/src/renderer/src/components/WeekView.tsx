@@ -41,6 +41,10 @@ import {
 } from '../lib/calendarPermissions'
 import { isEventCopyShortcut } from '../lib/eventClipboard'
 import { getEventPrimaryLabel, getEventSecondaryLabel } from '../lib/eventLocationDisplay'
+import {
+  getVisibleTimedPreviewRange,
+  NEW_EVENT_PREVIEW_SURFACE_STYLE
+} from '../lib/newEventPreviewStyle'
 import EventInfoPopover from './EventInfoPopover'
 import EventDetailPopover from './EventDetailPopover'
 
@@ -328,9 +332,11 @@ function DropSlot({
 
 function AllDayDropSlot({
   id,
+  onCreate,
   children
 }: {
   id: string
+  onCreate?: (event: React.MouseEvent<HTMLDivElement> | React.KeyboardEvent<HTMLDivElement>) => void
   children: React.ReactNode
 }): React.JSX.Element {
   const { ref, isDropTarget } = useDroppable({ id })
@@ -339,11 +345,22 @@ function AllDayDropSlot({
     <div
       ref={ref}
       className="p-0.5 min-h-[24px]"
+      role={onCreate ? 'button' : undefined}
+      aria-label={onCreate ? 'Create all-day event' : undefined}
+      tabIndex={onCreate ? 0 : undefined}
+      onClick={onCreate}
+      onKeyDown={(event) => {
+        if (!onCreate) return
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        onCreate(event)
+      }}
       style={{
         borderLeft: '1px solid var(--border)',
         background: isDropTarget ? 'rgba(215,206,178,0.10)' : 'transparent',
         outline: isDropTarget ? '1px solid var(--accent-border)' : 'none',
-        outlineOffset: -1
+        outlineOffset: -1,
+        cursor: onCreate ? 'pointer' : undefined
       }}
     >
       {children}
@@ -360,8 +377,10 @@ interface WeekViewProps {
   onEventChange: (event: CalendarEvent) => Promise<void> | void
   onEventDelete: (event: CalendarEvent, scope?: GoogleCalendarDeleteScope) => Promise<void> | void
   onCopyEvent?: (event: CalendarEvent) => void
+  onAllDayCreate: (date: Date, anchor: PopoverAnchor) => void
   onTimedSelectionCreate: (date: Date, range: TimedSelectionRange, anchor: PopoverAnchor) => void
   newEventOpen?: boolean
+  allDayPreviewDate?: Date
   pinnedSelection?: { date: Date; startMinutes: number; endMinutes: number }
   onPinnedSelectionChange?: (date: Date, range: TimedSelectionRange) => void
 }
@@ -375,8 +394,10 @@ export default function WeekView({
   onEventChange,
   onEventDelete,
   onCopyEvent,
+  onAllDayCreate,
   onTimedSelectionCreate,
   newEventOpen,
+  allDayPreviewDate,
   pinnedSelection,
   onPinnedSelectionChange
 }: WeekViewProps): React.JSX.Element {
@@ -447,6 +468,15 @@ export default function WeekView({
     setPopoverAnchor(computeAnchor(rect))
     setSelectedEventId(event.id)
   }
+
+  const handleAllDayClick =
+    (date: Date) =>
+    (event: React.MouseEvent<HTMLDivElement> | React.KeyboardEvent<HTMLDivElement>): void => {
+      if (newEventOpen || draggedEventId) return
+
+      clearSelection()
+      onAllDayCreate(date, computeAnchor(event.currentTarget.getBoundingClientRect()))
+    }
 
   const handleDragStart = ({ operation }: DragStartPayload): void => {
     const source = operation.source
@@ -738,7 +768,6 @@ export default function WeekView({
   const allDayEvents = (day: Date): CalendarEvent[] =>
     events.filter((event) => event.date === toDateStr(day) && event.allDay)
 
-  const hasAnyAllDay = days.some((day) => allDayEvents(day).length > 0)
   const draggedTimedEvent = draggedEventId
     ? events.find(
         (event) => event.id === draggedEventId && !event.allDay && event.startTime && event.endTime
@@ -820,27 +849,32 @@ export default function WeekView({
             })}
           </div>
 
-          {hasAnyAllDay && (
+          <div
+            className="grid"
+            style={{
+              gridTemplateColumns: WEEK_GRID_TEMPLATE_COLUMNS,
+              borderTop: '1px solid var(--border)'
+            }}
+          >
             <div
-              className="grid"
-              style={{
-                gridTemplateColumns: WEEK_GRID_TEMPLATE_COLUMNS,
-                borderTop: '1px solid var(--border)'
-              }}
+              className="flex items-start justify-end pr-2 pt-1"
+              style={{ color: 'var(--text-dim)' }}
             >
-              <div
-                className="flex items-start justify-end pr-2 pt-1"
-                style={{ color: 'var(--text-dim)' }}
-              >
-                <span className="text-[9px] uppercase tracking-wider">ALL DAY</span>
-              </div>
-              {days.map((day) => {
-                const dayEvents = allDayEvents(day)
-                return (
-                  <AllDayDropSlot
-                    key={`all-day-${toDateStr(day)}`}
-                    id={buildAllDayDropSlotId('week', day)}
-                  >
+              <span className="text-[9px] uppercase tracking-wider">ALL DAY</span>
+            </div>
+            {days.map((day) => {
+              const dayEvents = allDayEvents(day)
+              const showAllDayPreview =
+                Boolean(newEventOpen) &&
+                allDayPreviewDate !== undefined &&
+                isSameDay(day, allDayPreviewDate)
+              return (
+                <AllDayDropSlot
+                  key={`all-day-${toDateStr(day)}`}
+                  id={buildAllDayDropSlotId('week', day)}
+                  onCreate={handleAllDayClick(day)}
+                >
+                  <div className="flex min-h-[24px] flex-col gap-0.5">
                     <AnimatePresence>
                       {dayEvents.map((event) => (
                         <DraggableAllDayEventPill
@@ -852,11 +886,22 @@ export default function WeekView({
                         />
                       ))}
                     </AnimatePresence>
-                  </AllDayDropSlot>
-                )
-              })}
-            </div>
-          )}
+                    {showAllDayPreview && (
+                      <div
+                        aria-hidden="true"
+                        className="new-event-all-day-preview"
+                        style={{
+                          minHeight: 18,
+                          borderRadius: 6,
+                          ...NEW_EVENT_PREVIEW_SURFACE_STYLE
+                        }}
+                      />
+                    )}
+                  </div>
+                </AllDayDropSlot>
+              )
+            })}
+          </div>
         </div>
 
         <div className="time-grid-scroll" ref={scrollRef}>
@@ -879,6 +924,10 @@ export default function WeekView({
 
             {days.map((day) => {
               const isToday = isSameDay(day, today)
+              const showAllDayPreview =
+                Boolean(newEventOpen) &&
+                allDayPreviewDate !== undefined &&
+                isSameDay(day, allDayPreviewDate)
               const dayTimedEvents = timedEvents(day).map((event) =>
                 timedResize?.eventId === event.id ? timedResize.previewEvent : event
               )
@@ -924,14 +973,17 @@ export default function WeekView({
                       newEventOpen && pinnedSelection && isSameDay(pinnedSelection.date, day)
                         ? pinnedSelection
                         : null
-                    const sel = pinnedPreview
-                      ? pinnedPreview
-                      : timedSelection && isSameDay(timedSelection.date, day)
-                        ? {
-                            startMinutes: timedSelection.range.startMinutes,
-                            endMinutes: timedSelection.range.endMinutes
-                          }
-                        : null
+                    const sel = getVisibleTimedPreviewRange({
+                      allDayPreviewVisible: showAllDayPreview,
+                      pinnedPreview,
+                      timedSelectionPreview:
+                        timedSelection && isSameDay(timedSelection.date, day)
+                          ? {
+                              startMinutes: timedSelection.range.startMinutes,
+                              endMinutes: timedSelection.range.endMinutes
+                            }
+                          : null
+                    })
                     if (!sel) return null
                     return (
                       <>
@@ -944,10 +996,7 @@ export default function WeekView({
                             top: ((sel.startMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT,
                             height: ((sel.endMinutes - sel.startMinutes) / 60) * HOUR_HEIGHT,
                             borderRadius: 4,
-                            background: 'rgba(215,206,178,0.20)',
-                            border: '1px solid var(--accent-border)',
-                            boxShadow: 'inset 0 0 0 1px rgba(215,206,178,0.12)',
-                            pointerEvents: 'none',
+                            ...NEW_EVENT_PREVIEW_SURFACE_STYLE,
                             zIndex: 3
                           }}
                         />
