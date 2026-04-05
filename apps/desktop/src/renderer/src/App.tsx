@@ -8,6 +8,7 @@ import DayView from './components/DayView'
 import GoogleCalendarLoginModal from './components/GoogleCalendarLoginModal'
 import SettingsModal from './components/SettingsModal'
 import FloatingDaySidebar from './components/FloatingDaySidebar'
+import NotificationToast from './components/NotificationToast'
 import RecurringDeleteModal from './components/RecurringDeleteModal'
 import RecurringEditModal from './components/RecurringEditModal'
 import { EVENTS, fromDateStr, isSameDay } from './data/events'
@@ -90,6 +91,8 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
   const [sidebarSettings, setSidebarSettings] = useState<SidebarSettings>(() =>
     loadSidebarSettings(getSidebarSettingsStorage())
   )
+  const [copiedEvent, setCopiedEvent] = useState<CalendarEvent | null>(null)
+  const [notificationMessage, setNotificationMessage] = useState<string | null>(null)
   const [showNewEvent, setShowNewEvent] = useState(false)
   const [newEventKey, setNewEventKey] = useState(0)
   const [newEventDefaults, setNewEventDefaults] = useState<NewEventDraftDefaults | undefined>(
@@ -166,6 +169,20 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
       isSameDay(activeDate, previousToday) ? new Date(today) : activeDate
     )
   }, [today])
+
+  useEffect(() => {
+    if (!notificationMessage) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setNotificationMessage(null)
+    }, 2000)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [notificationMessage])
 
   useEffect(() => {
     if (!googleCalendarStatus?.connected) {
@@ -407,6 +424,15 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
     )
   }
 
+  const handleCopyEvent = (event: CalendarEvent): void => {
+    setCopiedEvent(cloneCalendarEvent(event))
+    setNotificationMessage('You copied an event')
+  }
+
+  const handlePasteEvent = (): void => {
+    setNotificationMessage('You pasted an event')
+  }
+
   const handleToggleCalendarVisibility = (name: string): void => {
     setHiddenCalendars((currentHiddenCalendars) => {
       const nextHiddenCalendars = new Set(currentHiddenCalendars)
@@ -596,6 +622,7 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
           onClose={() => window.close()}
           onEventChange={handleEventChange}
           onEventDelete={handleEventDelete}
+          onCopyEvent={handleCopyEvent}
           onTimedSelectionCreate={handleTimedSelectionCreate}
           newEventOpen={showNewEvent}
           pinnedSelection={newEventPinnedRange}
@@ -607,6 +634,8 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
           onClose={() => { setShowNewEvent(false); setNewEventPinnedRange(undefined) }}
           calendars={calendarOptions}
           onCreateEvent={handleCreateEvent}
+          onPasteEvent={handlePasteEvent}
+          copiedEvent={copiedEvent}
           initialValues={newEventDefaults}
           anchor={newEventAnchor}
           onTimesChange={handleNewEventTimesChange}
@@ -677,10 +706,13 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
         onClose={() => { setShowNewEvent(false); setNewEventPinnedRange(undefined) }}
         calendars={calendarOptions}
         onCreateEvent={handleCreateEvent}
+        onPasteEvent={handlePasteEvent}
+        copiedEvent={copiedEvent}
         initialValues={newEventDefaults}
         anchor={newEventAnchor}
         onTimesChange={handleNewEventTimesChange}
       />
+      <NotificationToast message={notificationMessage} />
       <motion.div
         animate={{ width: sidebarSettings.sidebarVisible ? 220 : 0 }}
         transition={{ type: 'spring', stiffness: 320, damping: 30, mass: 0.9 }}
@@ -720,6 +752,7 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
               onDateSelect={handleDateSelect}
               onEventChange={handleEventChange}
               onEventDelete={handleEventDelete}
+              onCopyEvent={handleCopyEvent}
             />
           )}
           {view === 'week' && (
@@ -731,6 +764,7 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
               onDateSelect={handleDateSelect}
               onEventChange={handleEventChange}
               onEventDelete={handleEventDelete}
+              onCopyEvent={handleCopyEvent}
               onTimedSelectionCreate={handleTimedSelectionCreate}
               newEventOpen={showNewEvent}
               pinnedSelection={newEventPinnedRange}
@@ -745,6 +779,7 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
               today={today}
               onEventChange={handleEventChange}
               onEventDelete={handleEventDelete}
+              onCopyEvent={handleCopyEvent}
               onTimedSelectionCreate={handleTimedSelectionCreate}
               newEventOpen={showNewEvent}
               pinnedSelection={newEventPinnedRange}
@@ -844,6 +879,13 @@ function parseDraftTime(draftTime: string): number {
   const minute = Number(minuteText) || 0
   if (meridiem === 'AM') return (hour % 12) * 60 + minute
   return ((hour % 12) + 12) * 60 + minute
+}
+
+function cloneCalendarEvent(event: CalendarEvent): CalendarEvent {
+  return {
+    ...event,
+    ...(event.source ? { source: { ...event.source } } : {})
+  }
 }
 
 export default App

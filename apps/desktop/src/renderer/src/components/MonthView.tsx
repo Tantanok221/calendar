@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { EVENT_COLORS, isSameDay, toDateStr } from '../data/events'
 import type { CalendarEvent } from '../data/events'
@@ -10,6 +10,7 @@ import {
   getCalendarEventInteractionMode,
   isCalendarEventEditable
 } from '../lib/calendarPermissions'
+import { isEventCopyShortcut } from '../lib/eventClipboard'
 import { getEventPrimaryLabel } from '../lib/eventLocationDisplay'
 import EventInfoPopover from './EventInfoPopover'
 import EventDetailPopover from './EventDetailPopover'
@@ -80,6 +81,7 @@ interface MonthViewProps {
   onDateSelect: (d: Date) => void
   onEventChange: (event: CalendarEvent) => Promise<void> | void
   onEventDelete: (event: CalendarEvent, scope?: GoogleCalendarDeleteScope) => Promise<void> | void
+  onCopyEvent?: (event: CalendarEvent) => void
 }
 
 export default function MonthView({
@@ -89,7 +91,8 @@ export default function MonthView({
   today,
   onDateSelect,
   onEventChange,
-  onEventDelete
+  onEventDelete,
+  onCopyEvent
 }: MonthViewProps): React.JSX.Element {
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
@@ -98,6 +101,27 @@ export default function MonthView({
   const [popoverAnchor, setPopoverAnchor] = useState<PopoverAnchor | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? null
+
+  useEffect(() => {
+    if (!selectedEvent || showEditModal || !onCopyEvent) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (!isEventCopyShortcut(event)) {
+        return
+      }
+
+      event.preventDefault()
+      onCopyEvent(selectedEvent)
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [onCopyEvent, selectedEvent, showEditModal])
 
   const clearSelection = (): void => {
     setSelectedEventId(null)

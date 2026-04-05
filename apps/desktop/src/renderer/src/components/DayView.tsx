@@ -40,6 +40,7 @@ import {
   getCalendarEventInteractionMode,
   isCalendarEventEditable
 } from '../lib/calendarPermissions'
+import { isEventCopyShortcut } from '../lib/eventClipboard'
 import { getEventPrimaryLabel, getEventSecondaryLabel } from '../lib/eventLocationDisplay'
 import EventInfoPopover from './EventInfoPopover'
 import EventDetailPopover from './EventDetailPopover'
@@ -363,6 +364,7 @@ interface DayViewProps {
   today: Date
   onEventChange: (event: CalendarEvent) => Promise<void> | void
   onEventDelete: (event: CalendarEvent, scope?: GoogleCalendarDeleteScope) => Promise<void> | void
+  onCopyEvent?: (event: CalendarEvent) => void
   onTimedSelectionCreate: (date: Date, range: TimedSelectionRange, anchor: PopoverAnchor) => void
   initialScrollAnchor?: 'morning' | 'current-time'
   showHeader?: boolean
@@ -378,6 +380,7 @@ export default function DayView({
   today,
   onEventChange,
   onEventDelete,
+  onCopyEvent,
   onTimedSelectionCreate,
   initialScrollAnchor = 'morning',
   showHeader = true,
@@ -410,6 +413,27 @@ export default function DayView({
   const [showEditModal, setShowEditModal] = useState(false)
   const isToday = isSameDay(currentDate, today)
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? null
+
+  useEffect(() => {
+    if (!selectedEvent || showEditModal || !onCopyEvent) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (!isEventCopyShortcut(event)) {
+        return
+      }
+
+      event.preventDefault()
+      onCopyEvent(selectedEvent)
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [onCopyEvent, selectedEvent, showEditModal])
 
   const clearSelection = (): void => {
     setSelectedEventId(null)
