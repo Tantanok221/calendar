@@ -9,7 +9,7 @@ import {
   Keyboard
 } from '@phosphor-icons/react'
 import type { GoogleCalendarConnectionStatus } from '../../../main/googleCalendar/types'
-import type { ShortcutKeys, ShortcutModifier } from '../lib/calendarKeyboard'
+import { shortcutFromKeyboardEvent, type ShortcutKeys } from '../lib/calendarKeyboard'
 
 type SettingsSection = 'integrations' | 'shortcuts'
 
@@ -163,17 +163,13 @@ function ShortcutRecorder({
         return
       }
 
-      const modifiers: ShortcutModifier[] = []
-      if (event.metaKey) modifiers.push('Meta')
-      if (event.ctrlKey) modifiers.push('Control')
-      if (event.altKey) modifiers.push('Alt')
-      if (event.shiftKey) modifiers.push('Shift')
+      const nextShortcut = shortcutFromKeyboardEvent(event)
 
-      if (['Meta', 'Control', 'Alt', 'Shift'].includes(event.key)) {
+      if (!nextShortcut) {
         return
       }
 
-      onChange({ modifiers, key: event.key.toUpperCase() })
+      onChange(nextShortcut)
       setRecording(false)
     }
 

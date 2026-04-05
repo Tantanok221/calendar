@@ -7,6 +7,15 @@ export interface ShortcutKeys {
   key: string
 }
 
+export interface ShortcutKeyboardEventLike {
+  key: string
+  code?: string
+  metaKey: boolean
+  ctrlKey: boolean
+  altKey: boolean
+  shiftKey: boolean
+}
+
 export function normalizeShortcut(
   shortcut: ShortcutKeys | { modifiers?: unknown; key?: unknown } | null
 ): ShortcutKeys | null {
@@ -56,8 +65,45 @@ export function parseShortcut(rawShortcut: string | null): ShortcutKeys | null {
   }
 }
 
+export function shortcutFromKeyboardEvent(event: ShortcutKeyboardEventLike): ShortcutKeys | null {
+  if (['Meta', 'Control', 'Alt', 'Shift'].includes(event.key)) {
+    return null
+  }
+
+  const modifiers: ShortcutModifier[] = []
+
+  if (event.metaKey) modifiers.push('Meta')
+  if (event.ctrlKey) modifiers.push('Control')
+  if (event.altKey) modifiers.push('Alt')
+  if (event.shiftKey) modifiers.push('Shift')
+
+  const key = event.altKey ? normalizeShortcutCode(event.code) ?? normalizeShortcutKey(event.key) : normalizeShortcutKey(event.key)
+
+  return normalizeShortcut({ modifiers, key })
+}
+
 export function normalizeShortcutKey(key: string): string {
   return key.trim().toUpperCase()
+}
+
+function normalizeShortcutCode(code: string | undefined): string | null {
+  if (!code) {
+    return null
+  }
+
+  const keyMatch = /^Key([A-Z])$/.exec(code)
+
+  if (keyMatch) {
+    return keyMatch[1]
+  }
+
+  const digitMatch = /^Digit([0-9])$/.exec(code)
+
+  if (digitMatch) {
+    return digitMatch[1]
+  }
+
+  return null
 }
 
 function isShortcutModifier(value: unknown): value is ShortcutModifier {

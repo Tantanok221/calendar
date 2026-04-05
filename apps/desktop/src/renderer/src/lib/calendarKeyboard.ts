@@ -1,5 +1,6 @@
 import type { ViewType } from '../components/TopBar'
 import {
+  shortcutFromKeyboardEvent,
   normalizeShortcut,
   normalizeShortcutKey,
   parseShortcut,
@@ -97,7 +98,7 @@ export function matchesShortcut(
     event.shiftKey === normalizedShortcut.modifiers.includes('Shift')
   )
 }
-export { parseShortcut, serializeShortcut }
+export { parseShortcut, serializeShortcut, shortcutFromKeyboardEvent }
 
 function hasModifierKey(event: CalendarKeyboardEventLike): boolean {
   return event.altKey || event.ctrlKey || event.metaKey
