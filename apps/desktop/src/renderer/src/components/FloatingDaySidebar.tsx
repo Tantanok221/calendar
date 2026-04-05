@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
-import { X } from '@phosphor-icons/react'
 import DayView from './DayView'
 import type { CalendarEvent } from '../data/events'
+import { isSameDay } from '../data/events'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
 import type { TimedSelectionRange } from '../lib/calendarDrag'
 import type { GoogleCalendarDeleteScope } from '../lib/googleCalendarWriteback'
@@ -10,8 +10,8 @@ import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
 interface FloatingDaySidebarProps {
   events: CalendarEvent[]
   calendars: RendererCalendar[]
+  currentDate: Date
   today: Date
-  onClose: () => void
   onEventChange: (event: CalendarEvent) => Promise<void> | void
   onEventDelete: (event: CalendarEvent, scope?: GoogleCalendarDeleteScope) => Promise<void> | void
   onCopyEvent?: (event: CalendarEvent) => void
@@ -24,8 +24,8 @@ interface FloatingDaySidebarProps {
 export default function FloatingDaySidebar({
   events,
   calendars,
+  currentDate,
   today,
-  onClose,
   onEventChange,
   onEventDelete,
   onCopyEvent,
@@ -34,6 +34,10 @@ export default function FloatingDaySidebar({
   pinnedSelection,
   onPinnedSelectionChange
 }: FloatingDaySidebarProps): React.JSX.Element {
+  const title = isSameDay(currentDate, today)
+    ? 'Today'
+    : currentDate.toLocaleDateString('en-US', { weekday: 'long' })
+
   return (
     <motion.div
       className="flex flex-col h-screen overflow-hidden"
@@ -53,40 +57,23 @@ export default function FloatingDaySidebar({
       >
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>
-            Today
+            {title}
           </p>
           <p className="text-[11px]" style={{ color: 'var(--text-dim)' }}>
-            {today.toLocaleDateString('en-US', {
+            {currentDate.toLocaleDateString('en-US', {
               weekday: 'long',
               month: 'long',
               day: 'numeric'
             })}
           </p>
         </div>
-
-        <button
-          onClick={onClose}
-          className="no-drag flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
-          style={{ color: 'var(--text-dim)' }}
-          onMouseEnter={(event) => {
-            event.currentTarget.style.background = 'var(--surface-3)'
-            event.currentTarget.style.color = 'var(--text-muted)'
-          }}
-          onMouseLeave={(event) => {
-            event.currentTarget.style.background = 'transparent'
-            event.currentTarget.style.color = 'var(--text-dim)'
-          }}
-          aria-label="Close floating day view"
-        >
-          <X size={14} weight="bold" />
-        </button>
       </div>
 
       <div className="flex-1 min-h-0">
         <DayView
           events={events}
           calendars={calendars}
-          currentDate={today}
+          currentDate={currentDate}
           today={today}
           onEventChange={onEventChange}
           onEventDelete={onEventDelete}

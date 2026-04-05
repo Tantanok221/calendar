@@ -15,6 +15,12 @@ A Bun monorepo for the Stride desktop app and future shared or backend packages.
 $ bun install
 ```
 
+Copy the repo-root example env file before running the app:
+
+```bash
+$ cp .env.example .env
+```
+
 ### Development
 
 ```bash

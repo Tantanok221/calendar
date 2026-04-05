@@ -43,6 +43,13 @@ export function getNavigatedDate(
   return shiftMonths(currentDate, offset)
 }
 
+export function getEffectiveView(
+  view: ViewType,
+  windowMode: 'main' | 'panel' = 'main'
+): ViewType {
+  return windowMode === 'panel' ? 'day' : view
+}
+
 export function getCalendarKeyboardAction(
   event: CalendarKeyboardEventLike
 ): CalendarKeyboardAction | null {

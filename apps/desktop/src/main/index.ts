@@ -12,7 +12,7 @@ import {
   normalizeShortcut,
   type ShortcutKeys
 } from '../shared/shortcuts'
-import { getPanelWindowBounds } from './panelWindow'
+import { getPanelWindowBounds, revealPanelWindow } from './panelWindow'
 
 const SHORTCUT_FILE_NAME = 'shortcuts.json'
 
@@ -204,22 +204,7 @@ function toggleFloatingSidebarFromGlobalShortcut(): void {
   const window = existingPanelWindow && !existingPanelWindow.isDestroyed()
     ? existingPanelWindow
     : createPanelWindow()
-  const nextBounds = getPanelWindowBounds(
-    screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea
-  )
-
-  window.setBounds(nextBounds)
-  window.setAlwaysOnTop(true, 'screen-saver')
-  window.moveTop()
-
-  if (window.webContents.isLoadingMainFrame()) {
-    window.webContents.once('did-finish-load', () => {
-      window.showInactive()
-    })
-    return
-  }
-
-  window.showInactive()
+  revealPanelWindow(window, screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea)
 }
 
 function registerFloatingSidebarShortcut(

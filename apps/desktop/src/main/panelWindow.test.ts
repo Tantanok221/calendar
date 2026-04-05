@@ -36,4 +36,96 @@ describe('panel window helpers', () => {
       height: 1416
     })
   })
+
+  test('reveals and focuses an already loaded panel window', () => {
+    expect(typeof (panelWindow as Record<string, unknown>).revealPanelWindow).toBe('function')
+
+    const revealPanelWindow = (
+      panelWindow as Record<string, (...args: unknown[]) => unknown>
+    ).revealPanelWindow
+
+    const calls: string[] = []
+    const workArea = { x: 0, y: 25, width: 1440, height: 900 }
+    const window = createPanelWindowMock(calls, false)
+
+    revealPanelWindow(window, workArea)
+
+    expect(calls).toEqual([
+      'setBounds',
+      'setAlwaysOnTop:true:screen-saver',
+      'moveTop',
+      'show',
+      'focus',
+      'webContents.focus'
+    ])
+  })
+
+  test('waits for load before showing and focusing a new panel window', () => {
+    expect(typeof (panelWindow as Record<string, unknown>).revealPanelWindow).toBe('function')
+
+    const revealPanelWindow = (
+      panelWindow as Record<string, (...args: unknown[]) => unknown>
+    ).revealPanelWindow
+
+    const calls: string[] = []
+    const workArea = { x: 0, y: 25, width: 1440, height: 900 }
+    const window = createPanelWindowMock(calls, true)
+
+    revealPanelWindow(window, workArea)
+
+    expect(calls).toEqual([
+      'setBounds',
+      'setAlwaysOnTop:true:screen-saver',
+      'moveTop',
+      'webContents.once:did-finish-load'
+    ])
+
+    window.finishLoad?.()
+
+    expect(calls).toEqual([
+      'setBounds',
+      'setAlwaysOnTop:true:screen-saver',
+      'moveTop',
+      'webContents.once:did-finish-load',
+      'show',
+      'focus',
+      'webContents.focus'
+    ])
+  })
 })
+
+function createPanelWindowMock(calls: string[], isLoadingMainFrame: boolean) {
+  let finishLoad: (() => void) | undefined
+
+  return {
+    finishLoad: undefined as (() => void) | undefined,
+    setBounds: () => {
+      calls.push('setBounds')
+    },
+    setAlwaysOnTop: (flag: boolean, level?: string) => {
+      calls.push(`setAlwaysOnTop:${String(flag)}:${level ?? ''}`)
+    },
+    moveTop: () => {
+      calls.push('moveTop')
+    },
+    show: () => {
+      calls.push('show')
+    },
+    focus: () => {
+      calls.push('focus')
+    },
+    webContents: {
+      isLoadingMainFrame: () => isLoadingMainFrame,
+      once: (_event: string, callback: () => void) => {
+        calls.push('webContents.once:did-finish-load')
+        finishLoad = callback
+      },
+      focus: () => {
+        calls.push('webContents.focus')
+      }
+    },
+    get finishLoad() {
+      return finishLoad
+    }
+  }
+}

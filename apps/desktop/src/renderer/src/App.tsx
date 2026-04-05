@@ -45,6 +45,7 @@ import {
 import { filterVisibleCalendarEvents } from './lib/calendarVisibility'
 import {
   getCalendarKeyboardAction,
+  getEffectiveView,
   getNavigatedDate,
   getTodayAnchorDate,
   matchesShortcut,
@@ -213,7 +214,7 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
   }, [currentDate, googleCalendarStatus?.connected])
 
   const navigate = (dir: 'prev' | 'next'): void => {
-    setCurrentDate((activeDate) => getNavigatedDate(activeDate, view, dir))
+    setCurrentDate((activeDate) => getNavigatedDate(activeDate, getEffectiveView(view, windowMode), dir))
   }
 
   useEffect(() => {
@@ -245,7 +246,9 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
       event.preventDefault()
 
       if (action.type === 'navigate') {
-        setCurrentDate((activeDate) => getNavigatedDate(activeDate, view, action.direction))
+        setCurrentDate((activeDate) =>
+          getNavigatedDate(activeDate, getEffectiveView(view, windowMode), action.direction)
+        )
         return
       }
 
@@ -262,7 +265,7 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
     return () => {
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [showSettings, sidebarSettings.toggleShortcut, today, view])
+  }, [showSettings, sidebarSettings.toggleShortcut, today, view, windowMode])
 
   useEffect(() => {
     if (windowMode === 'panel') {
@@ -618,8 +621,8 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
         <FloatingDaySidebar
           events={visibleEvents}
           calendars={calendarOptions}
+          currentDate={currentDate}
           today={today}
-          onClose={() => window.close()}
           onEventChange={handleEventChange}
           onEventDelete={handleEventDelete}
           onCopyEvent={handleCopyEvent}
