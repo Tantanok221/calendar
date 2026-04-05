@@ -39,6 +39,7 @@ import {
   getCalendarEventInteractionMode,
   isCalendarEventEditable
 } from '../lib/calendarPermissions'
+import { isEventCopyShortcut } from '../lib/eventClipboard'
 import { getEventPrimaryLabel, getEventSecondaryLabel } from '../lib/eventLocationDisplay'
 import EventInfoPopover from './EventInfoPopover'
 import EventDetailPopover from './EventDetailPopover'
@@ -358,6 +359,7 @@ interface WeekViewProps {
   onDateSelect: (d: Date) => void
   onEventChange: (event: CalendarEvent) => Promise<void> | void
   onEventDelete: (event: CalendarEvent, scope?: GoogleCalendarDeleteScope) => Promise<void> | void
+  onCopyEvent?: (event: CalendarEvent) => void
   onTimedSelectionCreate: (date: Date, range: TimedSelectionRange, anchor: PopoverAnchor) => void
   newEventOpen?: boolean
   pinnedSelection?: { date: Date; startMinutes: number; endMinutes: number }
@@ -372,6 +374,7 @@ export default function WeekView({
   onDateSelect,
   onEventChange,
   onEventDelete,
+  onCopyEvent,
   onTimedSelectionCreate,
   newEventOpen,
   pinnedSelection,
@@ -404,6 +407,27 @@ export default function WeekView({
   const [showEditModal, setShowEditModal] = useState(false)
   const days = getWeekDays(currentDate)
   const selectedEvent = events.find((event) => event.id === selectedEventId) ?? null
+
+  useEffect(() => {
+    if (!selectedEvent || showEditModal || !onCopyEvent) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (!isEventCopyShortcut(event)) {
+        return
+      }
+
+      event.preventDefault()
+      onCopyEvent(selectedEvent)
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [onCopyEvent, selectedEvent, showEditModal])
 
   const clearSelection = (): void => {
     setSelectedEventId(null)

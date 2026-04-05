@@ -13,9 +13,11 @@ import {
 import { cn } from '../lib/utils'
 import { getClosestTimeSuggestion, getTimeSuggestions } from '../lib/timeSuggestions'
 import { EVENT_COLORS, isSameDay } from '../data/events'
+import type { CalendarEvent } from '../data/events'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
 import { getDefaultWritableCalendarId, getWritableCalendars } from '../lib/calendarPermissions'
 import type { CreateCalendarEventDraft } from '../lib/googleCalendarCreate'
+import { buildCreateDraftFromCopiedEvent, isEventPasteShortcut } from '../lib/eventClipboard'
 import type { RepeatEndType } from '../lib/googleCalendarRecurrence'
 import { shouldSubmitOnEnterKeyDown } from '../lib/keyboardSubmit'
 import { addDays, addMonths, getNextMonday, getToday, useToday } from '../lib/today'
@@ -371,6 +373,8 @@ interface NewEventPopoverProps {
   onClose: () => void
   calendars: RendererCalendar[]
   onCreateEvent: (draft: CreateCalendarEventDraft) => Promise<void>
+  onPasteEvent?: () => void
+  copiedEvent?: CalendarEvent | null
   initialValues?: {
     selectedDate?: Date
     allDay?: boolean
@@ -386,6 +390,8 @@ export default function NewEventPopover({
   onClose,
   calendars,
   onCreateEvent,
+  onPasteEvent,
+  copiedEvent,
   initialValues,
   anchor,
   onTimesChange
@@ -512,6 +518,40 @@ export default function NewEventPopover({
     }
   }
 
+  const handlePasteCopiedEvent = async (): Promise<void> => {
+    if (!copiedEvent) {
+      return
+    }
+
+    if (!selectedCalendar) {
+      setSubmitError('Choose an editable calendar first')
+      return
+    }
+
+    setIsSubmitting(true)
+    setSubmitError(null)
+
+    try {
+      await onCreateEvent(
+        buildCreateDraftFromCopiedEvent(copiedEvent, {
+          selectedDate,
+          allDay,
+          startTime,
+          endTime,
+          calendarId: selectedCalendar.id,
+          calendarName: selectedCalendar.name,
+          color: selectedCalendar.color
+        })
+      )
+      onPasteEvent?.()
+      onClose()
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Could not paste the event')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   if (!open) return <></>
 
   const panelStyle: React.CSSProperties = anchor
@@ -543,6 +583,17 @@ export default function NewEventPopover({
       }
 
   const handlePanelKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (
+      copiedEvent &&
+      isEventPasteShortcut(event, {
+        allowEditableTarget: true
+      })
+    ) {
+      event.preventDefault()
+      void handlePasteCopiedEvent()
+      return
+    }
+
     const target = event.target instanceof HTMLElement ? event.target : null
 
     if (

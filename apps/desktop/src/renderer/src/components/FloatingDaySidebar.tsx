@@ -14,6 +14,7 @@ interface FloatingDaySidebarProps {
   onClose: () => void
   onEventChange: (event: CalendarEvent) => Promise<void> | void
   onEventDelete: (event: CalendarEvent, scope?: GoogleCalendarDeleteScope) => Promise<void> | void
+  onCopyEvent?: (event: CalendarEvent) => void
   onTimedSelectionCreate: (date: Date, range: TimedSelectionRange, anchor: PopoverAnchor) => void
   newEventOpen?: boolean
   pinnedSelection?: { date: Date; startMinutes: number; endMinutes: number }
@@ -27,6 +28,7 @@ export default function FloatingDaySidebar({
   onClose,
   onEventChange,
   onEventDelete,
+  onCopyEvent,
   onTimedSelectionCreate,
   newEventOpen,
   pinnedSelection,
@@ -88,6 +90,7 @@ export default function FloatingDaySidebar({
           today={today}
           onEventChange={onEventChange}
           onEventDelete={onEventDelete}
+          onCopyEvent={onCopyEvent}
           onTimedSelectionCreate={onTimedSelectionCreate}
           initialScrollAnchor="current-time"
           showHeader={false}
