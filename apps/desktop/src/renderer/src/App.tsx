@@ -60,6 +60,7 @@ import {
   type NewEventDraftDefaults,
   type TimedSelectionRange
 } from './lib/calendarDrag'
+import type { PopoverAnchor } from './lib/eventPopoverAnchor'
 
 const DEFAULT_EVENTS = EVENTS.map((event) => ({ ...event }))
 
@@ -94,6 +95,12 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
   const [newEventDefaults, setNewEventDefaults] = useState<NewEventDraftDefaults | undefined>(
     undefined
   )
+  const [newEventAnchor, setNewEventAnchor] = useState<PopoverAnchor | undefined>(undefined)
+  const [newEventPinnedRange, setNewEventPinnedRange] = useState<{
+    date: Date
+    startMinutes: number
+    endMinutes: number
+  } | undefined>(undefined)
   const [pendingRecurringSave, setPendingRecurringSave] = useState<{
     previousEvent: CalendarEvent
     updatedEvent: CalendarEvent
@@ -439,14 +446,64 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
     }))
   }
 
-  const openNewEvent = (defaults?: NewEventDraftDefaults): void => {
+  const openNewEvent = (defaults?: NewEventDraftDefaults, anchor?: PopoverAnchor): void => {
     setNewEventDefaults(defaults)
+    setNewEventAnchor(anchor)
     setNewEventKey((value) => value + 1)
     setShowNewEvent(true)
+    if (defaults && !defaults.allDay) {
+      setNewEventPinnedRange({
+        date: defaults.selectedDate,
+        startMinutes: parseDraftTime(defaults.startTime),
+        endMinutes: parseDraftTime(defaults.endTime)
+      })
+    } else {
+      setNewEventPinnedRange(undefined)
+    }
   }
 
-  const handleTimedSelectionCreate = (date: Date, range: TimedSelectionRange): void => {
-    openNewEvent(buildTimedDraftFromSelection(date, range))
+  const handleNewEventTimesChange = (
+    startTime: string,
+    endTime: string,
+    allDay: boolean
+  ): void => {
+    if (allDay || !newEventDefaults?.selectedDate) {
+      setNewEventPinnedRange(undefined)
+      return
+    }
+    setNewEventPinnedRange({
+      date: newEventDefaults.selectedDate,
+      startMinutes: parseDraftTime(startTime),
+      endMinutes: parseDraftTime(endTime)
+    })
+  }
+
+  const handleNewEventPinnedSelectionChange = (
+    date: Date,
+    range: TimedSelectionRange
+  ): void => {
+    const nextDefaults = buildTimedDraftFromSelection(date, range)
+
+    setNewEventPinnedRange({
+      date: nextDefaults.selectedDate,
+      startMinutes: range.startMinutes,
+      endMinutes: range.endMinutes
+    })
+    setNewEventDefaults((currentDefaults) => ({
+      ...(currentDefaults ?? nextDefaults),
+      selectedDate: nextDefaults.selectedDate,
+      allDay: false,
+      startTime: nextDefaults.startTime,
+      endTime: nextDefaults.endTime
+    }))
+  }
+
+  const handleTimedSelectionCreate = (
+    date: Date,
+    range: TimedSelectionRange,
+    anchor: PopoverAnchor
+  ): void => {
+    openNewEvent(buildTimedDraftFromSelection(date, range), anchor)
   }
 
   const handleGoogleCalendarConnect = async (): Promise<void> => {
@@ -540,14 +597,19 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
           onEventChange={handleEventChange}
           onEventDelete={handleEventDelete}
           onTimedSelectionCreate={handleTimedSelectionCreate}
+          newEventOpen={showNewEvent}
+          pinnedSelection={newEventPinnedRange}
+          onPinnedSelectionChange={handleNewEventPinnedSelectionChange}
         />
         <NewEventPopover
           key={newEventKey}
           open={showNewEvent}
-          onClose={() => setShowNewEvent(false)}
+          onClose={() => { setShowNewEvent(false); setNewEventPinnedRange(undefined) }}
           calendars={calendarOptions}
           onCreateEvent={handleCreateEvent}
           initialValues={newEventDefaults}
+          anchor={newEventAnchor}
+          onTimesChange={handleNewEventTimesChange}
         />
       </div>
     )
@@ -612,10 +674,12 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
       <NewEventPopover
         key={newEventKey}
         open={showNewEvent}
-        onClose={() => setShowNewEvent(false)}
+        onClose={() => { setShowNewEvent(false); setNewEventPinnedRange(undefined) }}
         calendars={calendarOptions}
         onCreateEvent={handleCreateEvent}
         initialValues={newEventDefaults}
+        anchor={newEventAnchor}
+        onTimesChange={handleNewEventTimesChange}
       />
       <motion.div
         animate={{ width: sidebarSettings.sidebarVisible ? 220 : 0 }}
@@ -668,6 +732,9 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
               onEventChange={handleEventChange}
               onEventDelete={handleEventDelete}
               onTimedSelectionCreate={handleTimedSelectionCreate}
+              newEventOpen={showNewEvent}
+              pinnedSelection={newEventPinnedRange}
+              onPinnedSelectionChange={handleNewEventPinnedSelectionChange}
             />
           )}
           {view === 'day' && (
@@ -679,6 +746,9 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
               onEventChange={handleEventChange}
               onEventDelete={handleEventDelete}
               onTimedSelectionCreate={handleTimedSelectionCreate}
+              newEventOpen={showNewEvent}
+              pinnedSelection={newEventPinnedRange}
+              onPinnedSelectionChange={handleNewEventPinnedSelectionChange}
             />
           )}
         </div>
@@ -765,6 +835,15 @@ function isSameEventInstanceGroup(left: CalendarEvent, right: CalendarEvent): bo
   }
 
   return left.id === right.id
+}
+
+function parseDraftTime(draftTime: string): number {
+  const [time, meridiem] = draftTime.split(' ')
+  const [hourText, minuteText] = (time ?? '').split(':')
+  const hour = Number(hourText) || 0
+  const minute = Number(minuteText) || 0
+  if (meridiem === 'AM') return (hour % 12) * 60 + minute
+  return ((hour % 12) + 12) * 60 + minute
 }
 
 export default App

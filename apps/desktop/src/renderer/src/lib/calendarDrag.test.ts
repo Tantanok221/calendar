@@ -13,6 +13,7 @@ import {
   parseDropSlotId,
   rescheduleAllDayEvent,
   resizeTimedEvent,
+  resizeTimedSelectionRange,
   rescheduleTimedEvent,
   SNAP_MINUTES
 } from './calendarDrag'
@@ -227,6 +228,76 @@ describe('calendar drag helpers', () => {
     ).toMatchObject({
       startTime: '14:00',
       endTime: '21:00'
+    })
+  })
+
+  test('moves a new-event preview start from its top edge', () => {
+    expect(
+      resizeTimedSelectionRange(
+        {
+          startMinutes: 14 * 60,
+          endMinutes: 15 * 60 + 30
+        },
+        {
+          edge: 'start',
+          boundaryMinutes: 13 * 60 + 30
+        }
+      )
+    ).toEqual({
+      startMinutes: 13 * 60 + 30,
+      endMinutes: 15 * 60 + 30
+    })
+  })
+
+  test('moves a new-event preview end from its bottom edge', () => {
+    expect(
+      resizeTimedSelectionRange(
+        {
+          startMinutes: 14 * 60,
+          endMinutes: 15 * 60
+        },
+        {
+          edge: 'end',
+          boundaryMinutes: 16 * 60
+        }
+      )
+    ).toEqual({
+      startMinutes: 14 * 60,
+      endMinutes: 16 * 60
+    })
+  })
+
+  test('keeps a new-event preview at least one snap interval tall while resizing', () => {
+    expect(
+      resizeTimedSelectionRange(
+        {
+          startMinutes: 14 * 60,
+          endMinutes: 15 * 60
+        },
+        {
+          edge: 'start',
+          boundaryMinutes: 15 * 60 + 30
+        }
+      )
+    ).toEqual({
+      startMinutes: 14 * 60 + 30,
+      endMinutes: 15 * 60
+    })
+
+    expect(
+      resizeTimedSelectionRange(
+        {
+          startMinutes: 14 * 60,
+          endMinutes: 15 * 60
+        },
+        {
+          edge: 'end',
+          boundaryMinutes: 13 * 60
+        }
+      )
+    ).toEqual({
+      startMinutes: 14 * 60,
+      endMinutes: 14 * 60 + 30
     })
   })
 })

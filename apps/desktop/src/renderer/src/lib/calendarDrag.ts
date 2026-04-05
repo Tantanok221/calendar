@@ -230,6 +230,14 @@ interface ResizeTimedEventInput {
   minDurationMinutes?: number
 }
 
+interface ResizeTimedSelectionRangeInput {
+  edge: TimedEventResizeEdge
+  boundaryMinutes: number
+  dayStartMinutes?: number
+  dayEndMinutes?: number
+  minDurationMinutes?: number
+}
+
 export function resizeTimedEvent(
   event: CalendarEvent,
   {
@@ -262,6 +270,33 @@ export function resizeTimedEvent(
     ...event,
     startTime: minutesToTime(nextStartMinutes),
     endTime: minutesToTime(nextEndMinutes)
+  }
+}
+
+export function resizeTimedSelectionRange(
+  range: TimedSelectionRange,
+  {
+    edge,
+    boundaryMinutes,
+    dayStartMinutes = START_HOUR * 60,
+    dayEndMinutes = END_HOUR * 60,
+    minDurationMinutes = SNAP_MINUTES
+  }: ResizeTimedSelectionRangeInput
+): TimedSelectionRange {
+  const snappedBoundaryMinutes = Math.min(
+    Math.max(roundToSnap(boundaryMinutes, minDurationMinutes), dayStartMinutes),
+    dayEndMinutes
+  )
+
+  return {
+    startMinutes:
+      edge === 'start'
+        ? Math.min(snappedBoundaryMinutes, range.endMinutes - minDurationMinutes)
+        : range.startMinutes,
+    endMinutes:
+      edge === 'end'
+        ? Math.max(snappedBoundaryMinutes, range.startMinutes + minDurationMinutes)
+        : range.endMinutes
   }
 }
 

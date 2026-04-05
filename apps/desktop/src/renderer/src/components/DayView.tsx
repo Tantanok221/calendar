@@ -11,7 +11,7 @@ import {
   HOUR_HEIGHT
 } from '../data/events'
 import type { CalendarEvent } from '../data/events'
-import { computeAnchor } from '../lib/eventPopoverAnchor'
+import { computeAnchor, computeAnchorFromTimedSelectionRect } from '../lib/eventPopoverAnchor'
 import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
 import {
   buildAllDayDropSlotId,
@@ -23,6 +23,7 @@ import {
   getTimedSlotStartMinutes,
   parseDropSlotId,
   resizeTimedEvent,
+  resizeTimedSelectionRange,
   rescheduleAllDayEvent,
   rescheduleTimedEvent,
   SNAP_MINUTES,
@@ -362,9 +363,12 @@ interface DayViewProps {
   today: Date
   onEventChange: (event: CalendarEvent) => Promise<void> | void
   onEventDelete: (event: CalendarEvent, scope?: GoogleCalendarDeleteScope) => Promise<void> | void
-  onTimedSelectionCreate: (date: Date, range: TimedSelectionRange) => void
+  onTimedSelectionCreate: (date: Date, range: TimedSelectionRange, anchor: PopoverAnchor) => void
   initialScrollAnchor?: 'morning' | 'current-time'
   showHeader?: boolean
+  newEventOpen?: boolean
+  pinnedSelection?: { date: Date; startMinutes: number; endMinutes: number }
+  onPinnedSelectionChange?: (date: Date, range: TimedSelectionRange) => void
 }
 
 export default function DayView({
@@ -376,7 +380,10 @@ export default function DayView({
   onEventDelete,
   onTimedSelectionCreate,
   initialScrollAnchor = 'morning',
-  showHeader = true
+  showHeader = true,
+  newEventOpen,
+  pinnedSelection,
+  onPinnedSelectionChange
 }: DayViewProps): React.JSX.Element {
   const scrollRef = useRef<HTMLDivElement>(null)
   const suppressClickUntilRef = useRef(0)
@@ -395,6 +402,10 @@ export default function DayView({
     originalEvent: CalendarEvent
     pointerId: number
     previewEvent: CalendarEvent
+  } | null>(null)
+  const [pinnedSelectionResize, setPinnedSelectionResize] = useState<{
+    edge: TimedEventResizeEdge
+    pointerId: number
   } | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const isToday = isSameDay(currentDate, today)
@@ -469,6 +480,7 @@ export default function DayView({
   }
 
   const handleTimedGridPointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
+    if (newEventOpen) return
     if (event.button !== 0 || draggedEventId) return
     if (event.target instanceof Element && event.target.closest('.event-block')) return
 
@@ -488,6 +500,36 @@ export default function DayView({
 
   const handleTimedGridPointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
     const rect = event.currentTarget.getBoundingClientRect()
+
+    if (
+      pinnedSelectionResize &&
+      pinnedSelectionResize.pointerId === event.pointerId &&
+      newEventOpen &&
+      pinnedSelection &&
+      onPinnedSelectionChange
+    ) {
+      const boundaryMinutes = getTimedResizeBoundaryMinutes(event.clientY - rect.top)
+      const nextRange = resizeTimedSelectionRange(
+        {
+          startMinutes: pinnedSelection.startMinutes,
+          endMinutes: pinnedSelection.endMinutes
+        },
+        {
+          edge: pinnedSelectionResize.edge,
+          boundaryMinutes
+        }
+      )
+
+      if (
+        nextRange.startMinutes !== pinnedSelection.startMinutes ||
+        nextRange.endMinutes !== pinnedSelection.endMinutes
+      ) {
+        onPinnedSelectionChange(currentDate, nextRange)
+      }
+      return
+    }
+
+    if (newEventOpen) return
 
     if (timedResize && timedResize.pointerId === event.pointerId) {
       const boundaryMinutes = getTimedResizeBoundaryMinutes(event.clientY - rect.top)
@@ -548,6 +590,15 @@ export default function DayView({
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
 
+    if (pinnedSelectionResize && pinnedSelectionResize.pointerId === event.pointerId) {
+      if (shouldCreate) {
+        suppressClickUntilRef.current = Date.now() + 250
+      }
+
+      setPinnedSelectionResize(null)
+      return
+    }
+
     if (timedResize && timedResize.pointerId === event.pointerId) {
       if (shouldCreate) {
         suppressClickUntilRef.current = Date.now() + 250
@@ -564,6 +615,8 @@ export default function DayView({
       return
     }
 
+    const dayColumnRect = event.currentTarget.getBoundingClientRect()
+
     setTimedSelection((currentSelection) => {
       if (!currentSelection || currentSelection.pointerId !== event.pointerId) {
         return currentSelection
@@ -571,7 +624,21 @@ export default function DayView({
 
       if (shouldCreate) {
         suppressClickUntilRef.current = Date.now() + 250
-        onTimedSelectionCreate(currentDate, currentSelection.range)
+        onTimedSelectionCreate(
+          currentDate,
+          currentSelection.range,
+          computeAnchorFromTimedSelectionRect({
+            left: dayColumnRect.left + 4,
+            right: dayColumnRect.right - 4,
+            top:
+              dayColumnRect.top +
+              ((currentSelection.range.startMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT,
+            bottom:
+              dayColumnRect.top +
+              ((currentSelection.range.endMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT
+          })
+        )
+        return currentSelection
       }
 
       return null
@@ -601,6 +668,26 @@ export default function DayView({
       })
     }
 
+  const handlePinnedSelectionResizeStart =
+    (edge: TimedEventResizeEdge) =>
+    (pointerEvent: React.PointerEvent<HTMLDivElement>): void => {
+      if (!newEventOpen || !pinnedSelection || !onPinnedSelectionChange) return
+      if (pointerEvent.button !== 0 || draggedEventId) return
+
+      const dayColumn = pointerEvent.currentTarget.closest('.day-col-inner')
+      if (!(dayColumn instanceof HTMLDivElement)) return
+
+      clearSelection()
+      pointerEvent.preventDefault()
+      pointerEvent.stopPropagation()
+      pointerEvent.nativeEvent.stopImmediatePropagation()
+      dayColumn.setPointerCapture(pointerEvent.pointerId)
+      setPinnedSelectionResize({
+        edge,
+        pointerId: pointerEvent.pointerId
+      })
+    }
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = getDayViewInitialScrollTop({
@@ -618,6 +705,10 @@ export default function DayView({
     const id = setInterval(() => setNowPx(nowOffsetPx()), 60_000)
     return () => clearInterval(id)
   }, [])
+
+  useEffect(() => {
+    if (!newEventOpen) setTimedSelection(null)
+  }, [newEventOpen])
 
   const dayStr = toDateStr(currentDate)
   const timedEvents = events
@@ -791,25 +882,97 @@ export default function DayView({
                 />
               ))}
 
-              {timedSelection && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: 4,
-                    right: 4,
-                    top: ((timedSelection.range.startMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT,
-                    height:
-                      ((timedSelection.range.endMinutes - timedSelection.range.startMinutes) / 60) *
-                      HOUR_HEIGHT,
-                    borderRadius: 4,
-                    background: 'rgba(215,206,178,0.20)',
-                    border: '1px solid var(--accent-border)',
-                    boxShadow: 'inset 0 0 0 1px rgba(215,206,178,0.12)',
-                    pointerEvents: 'none',
-                    zIndex: 3
-                  }}
-                />
-              )}
+              {(() => {
+                const pinnedPreview = newEventOpen && pinnedSelection ? pinnedSelection : null
+                const sel = pinnedPreview
+                  ? pinnedPreview
+                  : timedSelection
+                    ? {
+                        startMinutes: timedSelection.range.startMinutes,
+                        endMinutes: timedSelection.range.endMinutes
+                      }
+                    : null
+                if (!sel) return null
+                return (
+                  <>
+                    <div
+                      className="new-event-selection-preview"
+                      style={{
+                        position: 'absolute',
+                        left: 4,
+                        right: 4,
+                        top: ((sel.startMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT,
+                        height: ((sel.endMinutes - sel.startMinutes) / 60) * HOUR_HEIGHT,
+                        borderRadius: 4,
+                        background: 'rgba(215,206,178,0.20)',
+                        border: '1px solid var(--accent-border)',
+                        boxShadow: 'inset 0 0 0 1px rgba(215,206,178,0.12)',
+                        pointerEvents: 'none',
+                        zIndex: 3
+                      }}
+                    />
+                    {pinnedPreview && onPinnedSelectionChange && (
+                      <>
+                        <div
+                          aria-hidden="true"
+                          className="new-event-selection-resize-handle-top"
+                          onPointerDown={handlePinnedSelectionResizeStart('start')}
+                          onClick={(clickEvent) => clickEvent.stopPropagation()}
+                          style={{
+                            position: 'absolute',
+                            left: 4,
+                            right: 4,
+                            top:
+                              ((sel.startMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT - 6,
+                            height: 12,
+                            cursor: 'ns-resize',
+                            zIndex: 4
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 28,
+                              height: 3,
+                              margin: '1px auto 0',
+                              borderRadius: 999,
+                              background: 'var(--accent-border)',
+                              opacity: 0.95,
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.18)'
+                            }}
+                          />
+                        </div>
+                        <div
+                          aria-hidden="true"
+                          className="new-event-selection-resize-handle-bottom"
+                          onPointerDown={handlePinnedSelectionResizeStart('end')}
+                          onClick={(clickEvent) => clickEvent.stopPropagation()}
+                          style={{
+                            position: 'absolute',
+                            left: 4,
+                            right: 4,
+                            top: ((sel.endMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT - 6,
+                            height: 12,
+                            cursor: 'ns-resize',
+                            zIndex: 4
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 28,
+                              height: 3,
+                              margin: '8px auto 0',
+                              borderRadius: 999,
+                              background: 'var(--accent-border)',
+                              opacity: 0.95,
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.18)'
+                            }}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </>
+                )
+              })()}
 
               <AnimatePresence>
                 {displayedTimedEvents.map((event) => (

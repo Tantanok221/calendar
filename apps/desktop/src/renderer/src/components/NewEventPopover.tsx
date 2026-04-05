@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import * as Dialog from '@radix-ui/react-dialog'
 import * as Popover from '@radix-ui/react-popover'
 import {
   X,
@@ -20,6 +19,7 @@ import type { CreateCalendarEventDraft } from '../lib/googleCalendarCreate'
 import type { RepeatEndType } from '../lib/googleCalendarRecurrence'
 import { shouldSubmitOnEnterKeyDown } from '../lib/keyboardSubmit'
 import { addDays, addMonths, getNextMonday, getToday, useToday } from '../lib/today'
+import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
 
 // ── TimeInput ───────────────────────────────────────────────────────────────
 interface TimeInputProps {
@@ -377,6 +377,8 @@ interface NewEventPopoverProps {
     startTime?: string
     endTime?: string
   }
+  anchor?: PopoverAnchor
+  onTimesChange?: (startTime: string, endTime: string, allDay: boolean) => void
 }
 
 export default function NewEventPopover({
@@ -384,7 +386,9 @@ export default function NewEventPopover({
   onClose,
   calendars,
   onCreateEvent,
-  initialValues
+  initialValues,
+  anchor,
+  onTimesChange
 }: NewEventPopoverProps): React.JSX.Element {
   const writableCalendars = getWritableCalendars(calendars)
   const [title, setTitle] = useState('')
@@ -403,6 +407,7 @@ export default function NewEventPopover({
   const [repeatCount, setRepeatCount] = useState(4)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   const DOW_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
   const DOW_FULL = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -416,6 +421,58 @@ export default function NewEventPopover({
       setCalendarId(nextCalendarId)
     }
   }, [calendarId, calendars])
+
+  useEffect(() => {
+    onTimesChange?.(startTime, endTime, allDay)
+  }, [startTime, endTime, allDay])
+
+  useEffect(() => {
+    if (!open || !initialValues) return
+
+    if (initialValues.selectedDate) {
+      setSelectedDate(initialValues.selectedDate)
+    }
+
+    if (initialValues.allDay !== undefined) {
+      setAllDay(initialValues.allDay)
+    }
+
+    if (initialValues.startTime) {
+      setStartTime(initialValues.startTime)
+    }
+
+    if (initialValues.endTime) {
+      setEndTime(initialValues.endTime)
+    }
+  }, [
+    open,
+    initialValues?.allDay,
+    initialValues?.endTime,
+    initialValues?.selectedDate?.getTime(),
+    initialValues?.startTime
+  ])
+
+  useEffect(() => {
+    if (!open || !anchor) return
+
+    const handleMouseDown = (e: MouseEvent): void => {
+      if (isSubmitting) return
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+
+    const handleKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape' && !isSubmitting) onClose()
+    }
+
+    window.addEventListener('mousedown', handleMouseDown)
+    window.addEventListener('keydown', handleKey)
+    return () => {
+      window.removeEventListener('mousedown', handleMouseDown)
+      window.removeEventListener('keydown', handleKey)
+    }
+  }, [open, anchor, isSubmitting, onClose])
 
   const toggleRepeatDay = (idx: number): void => {
     setRepeatDays((prev) => (prev.includes(idx) ? prev.filter((d) => d !== idx) : [...prev, idx]))
@@ -455,91 +512,107 @@ export default function NewEventPopover({
     }
   }
 
+  if (!open) return <></>
+
+  const panelStyle: React.CSSProperties = anchor
+    ? {
+        position: 'fixed',
+        zIndex: 50,
+        top: anchor.top,
+        left: anchor.left,
+        width: 340,
+        background: 'var(--surface-2)',
+        border: '1px solid var(--border-strong)',
+        borderRadius: 12,
+        boxShadow: '0 20px 56px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.25)',
+        overflow: 'hidden',
+        animation: 'newEventPanelIn 160ms cubic-bezier(0.16, 1, 0.3, 1)'
+      }
+    : {
+        position: 'fixed',
+        zIndex: 50,
+        left: '50%',
+        top: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 340,
+        background: 'var(--surface-2)',
+        border: '1px solid var(--border-strong)',
+        borderRadius: 14,
+        boxShadow: '0 32px 64px rgba(0,0,0,0.55), 0 4px 16px rgba(0,0,0,0.3)',
+        overflow: 'hidden'
+      }
+
+  const handlePanelKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    const target = event.target instanceof HTMLElement ? event.target : null
+
+    if (
+      !shouldSubmitOnEnterKeyDown({
+        key: event.key,
+        tagName: target?.tagName,
+        defaultPrevented: event.defaultPrevented,
+        altKey: event.altKey,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        shiftKey: event.shiftKey,
+        isContentEditable: target?.isContentEditable
+      })
+    ) {
+      return
+    }
+
+    event.preventDefault()
+    void handleSubmit()
+  }
+
   return (
-    <Dialog.Root
-      open={open}
-      onOpenChange={(v) => {
-        if (!v && !isSubmitting) {
-          onClose()
+    <>
+      <style>{`
+        @keyframes newEventPanelIn {
+          from { opacity: 0; transform: scale(0.93) translateY(6px); }
+          to   { opacity: 1; transform: scale(1)    translateY(0);   }
         }
-      }}
-    >
-      <Dialog.Portal>
-        {/* Overlay */}
-        <Dialog.Overlay
-          data-radix-dialog-overlay
+      `}</style>
+
+      {!anchor && (
+        <div
           className="fixed inset-0 z-40"
           style={{ background: 'rgba(0,0,0,0.45)' }}
+          onMouseDown={() => { if (!isSubmitting) onClose() }}
         />
+      )}
 
-        {/* Content */}
-        <Dialog.Content
-          data-radix-dialog-content
-          className="fixed z-50 flex flex-col outline-none"
-          style={{
-            left: '50%',
-            top: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: 340,
-            background: 'var(--surface-2)',
-            border: '1px solid var(--border-strong)',
-            borderRadius: 14,
-            boxShadow: '0 32px 64px rgba(0,0,0,0.55), 0 4px 16px rgba(0,0,0,0.3)'
-          }}
-          onPointerDownOutside={(event) => {
-            if (isSubmitting) {
-              event.preventDefault()
-            } else {
-              onClose()
-            }
-          }}
-          onKeyDown={(event) => {
-            const target = event.target instanceof HTMLElement ? event.target : null
-
-            if (
-              !shouldSubmitOnEnterKeyDown({
-                key: event.key,
-                tagName: target?.tagName,
-                defaultPrevented: event.defaultPrevented,
-                altKey: event.altKey,
-                ctrlKey: event.ctrlKey,
-                metaKey: event.metaKey,
-                shiftKey: event.shiftKey,
-                isContentEditable: target?.isContentEditable
-              })
-            ) {
-              return
-            }
-
-            event.preventDefault()
-            void handleSubmit()
-          }}
-        >
+      <div
+        ref={panelRef}
+        className="flex flex-col outline-none"
+        style={panelStyle}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onKeyDown={handlePanelKeyDown}
+      >
           {/* ── Header ── */}
           <div className="flex items-center justify-between px-4 pt-4 pb-2">
-            <Dialog.Title
+            <p
               className="text-[10px] font-semibold uppercase tracking-widest"
               style={{ color: 'var(--text-muted)' }}
             >
               New Event
-            </Dialog.Title>
-            <Dialog.Close asChild>
-              <button
-                disabled={isSubmitting}
-                className="flex items-center justify-center w-6 h-6 rounded-md transition-colors"
-                style={{ color: 'var(--text-muted)' }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--surface-3)'
-                  e.currentTarget.style.color = 'var(--text)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'transparent'
-                  e.currentTarget.style.color = 'var(--text-muted)'
-                }}
-              >
-                <X size={13} weight="bold" />
-              </button>
-            </Dialog.Close>
+            </p>
+            <button
+              disabled={isSubmitting}
+              onClick={onClose}
+              className="flex items-center justify-center w-6 h-6 rounded-md transition-colors"
+              style={{ color: 'var(--text-muted)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--surface-3)'
+                e.currentTarget.style.color = 'var(--text)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent'
+                e.currentTarget.style.color = 'var(--text-muted)'
+              }}
+            >
+              <X size={13} weight="bold" />
+            </button>
           </div>
 
           {/* ── Title input ── */}
@@ -861,8 +934,7 @@ export default function NewEventPopover({
               {isSubmitting ? 'Creating...' : 'Create Event'}
             </button>
           </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+      </div>
+    </>
   )
 }
