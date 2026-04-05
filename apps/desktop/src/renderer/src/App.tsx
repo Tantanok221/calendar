@@ -738,7 +738,7 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
         animate={{ width: sidebarSettings.sidebarVisible ? 220 : 0 }}
         transition={{ type: 'spring', stiffness: 320, damping: 30, mass: 0.9 }}
         initial={false}
-        style={{ overflow: 'hidden', flexShrink: 0 }}
+        style={{ overflow: 'hidden', flexShrink: 0, height: '100%' }}
       >
         <Sidebar
           calendars={calendarOptions}
