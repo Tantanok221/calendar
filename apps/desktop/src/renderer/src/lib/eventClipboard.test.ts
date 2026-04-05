@@ -48,6 +48,7 @@ describe('buildCreateDraftFromCopiedEvent', () => {
       calendarName: 'Personal',
       color: 'green',
       repeat: false,
+      repeatFrequency: 'weekly',
       repeatDays: [],
       repeatEndType: 'date',
       repeatUntil: new Date(2026, 4, 2),

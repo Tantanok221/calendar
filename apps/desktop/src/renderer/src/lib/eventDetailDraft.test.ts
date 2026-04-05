@@ -13,6 +13,7 @@ const BASE_DRAFT: EventDetailDraft = {
   color: 'green',
   repeatChanged: false,
   repeat: false,
+  repeatFrequency: 'weekly',
   repeatDays: [],
   repeatEndType: 'date',
   repeatUntil: new Date(2026, 4, 1),
@@ -107,6 +108,43 @@ describe('buildUpdatedEventFromDetailDraft', () => {
         recurringEventId: 'series-1',
         timeZone: 'Asia/Kuala_Lumpur',
         recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=TU,WE;COUNT=6'],
+        recurrenceDirty: true
+      }
+    })
+  })
+
+  test('stores monthly Google recurrence changes on the updated event source', () => {
+    expect(
+      buildUpdatedEventFromDetailDraft(
+        {
+          id: 'google:primary:series-2',
+          title: 'Billing reminder',
+          date: '2026-03-30',
+          startTime: '09:00',
+          endTime: '09:30',
+          allDay: false,
+          color: 'violet',
+          calendar: 'Work',
+          source: {
+            provider: 'google',
+            calendarId: 'primary',
+            eventId: 'series-2',
+            recurringEventId: 'series-2',
+            timeZone: 'Asia/Kuala_Lumpur'
+          }
+        },
+        {
+          ...BASE_DRAFT,
+          repeatChanged: true,
+          repeat: true,
+          repeatFrequency: 'monthly',
+          repeatEndType: 'count',
+          repeatCount: 6
+        }
+      )
+    ).toMatchObject({
+      source: {
+        recurrence: ['RRULE:FREQ=MONTHLY;BYMONTHDAY=1;COUNT=6'],
         recurrenceDirty: true
       }
     })

@@ -20,7 +20,12 @@ import type { CalendarEvent } from '../data/events'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
 import { getDefaultWritableCalendarId, getWritableCalendars } from '../lib/calendarPermissions'
 import { buildUpdatedEventFromDetailDraft } from '../lib/eventDetailDraft'
-import { parseGoogleCalendarRecurrence, type RepeatEndType } from '../lib/googleCalendarRecurrence'
+import {
+  formatMonthlyRepeatTarget,
+  parseGoogleCalendarRecurrence,
+  type RepeatEndType,
+  type RepeatFrequency
+} from '../lib/googleCalendarRecurrence'
 import { shouldSubmitOnEnterKeyDown } from '../lib/keyboardSubmit'
 import { addDays, addMonths, getNextMonday, useToday } from '../lib/today'
 import type { GoogleCalendarDeleteScope } from '../lib/googleCalendarWriteback'
@@ -411,6 +416,9 @@ export default function EventDetailPopover({
   )
   const [repeatChanged, setRepeatChanged] = useState(false)
   const [repeat, setRepeat] = useState(Boolean(parsedRecurrence))
+  const [repeatFrequency, setRepeatFrequency] = useState<RepeatFrequency>(
+    parsedRecurrence?.repeatFrequency ?? 'weekly'
+  )
   const [repeatDays, setRepeatDays] = useState<number[]>(() => parsedRecurrence?.repeatDays ?? [])
   const [repeatEndType, setRepeatEndType] = useState<RepeatEndType>(
     parsedRecurrence?.repeatEndType ?? 'date'
@@ -462,6 +470,7 @@ export default function EventDetailPopover({
           color: selectedCalendar.color,
           repeatChanged,
           repeat,
+          repeatFrequency,
           repeatDays,
           repeatEndType,
           repeatUntil,
@@ -701,43 +710,96 @@ export default function EventDetailPopover({
                   className="text-[10px] uppercase tracking-widest font-semibold"
                   style={{ color: 'var(--text-dim)' }}
                 >
-                  Repeats on
+                  Frequency
                 </p>
-                <div className="flex items-center gap-1">
-                  {DOW_LABELS.map((label, idx) => {
-                    const active = repeatDays.includes(idx)
+                <div
+                  className="flex items-center rounded-md overflow-hidden"
+                  style={{ border: '1px solid var(--border-strong)', width: 'fit-content' }}
+                >
+                  {(['weekly', 'monthly'] as RepeatFrequency[]).map((type) => {
+                    const active = repeatFrequency === type
                     return (
                       <button
-                        key={idx}
-                        title={DOW_FULL[idx]}
+                        key={type}
                         disabled={isBusy}
-                        onClick={() => toggleRepeatDay(idx)}
-                        className="flex items-center justify-center rounded-full text-[11px] font-semibold transition-all duration-100"
+                        onClick={() => {
+                          setRepeatChanged(true)
+                          setRepeatFrequency(type)
+                        }}
+                        className="px-3 py-1 text-[11px] font-medium capitalize transition-colors"
                         style={{
-                          width: 28,
-                          height: 28,
-                          background: active ? 'var(--accent)' : 'var(--surface-2)',
-                          color: active ? 'var(--accent-on)' : 'var(--text-muted)',
-                          border: `1px solid ${active ? 'var(--accent)' : 'var(--border-strong)'}`
+                          background: active ? 'var(--accent)' : 'transparent',
+                          color: active ? 'var(--accent-on)' : 'var(--text-muted)'
                         }}
                         onMouseEnter={(e) => {
-                          if (!active) {
-                            e.currentTarget.style.borderColor = 'var(--accent-border)'
-                            e.currentTarget.style.color = 'var(--accent-text)'
-                          }
+                          if (!active) e.currentTarget.style.background = 'var(--surface-2)'
                         }}
                         onMouseLeave={(e) => {
-                          if (!active) {
-                            e.currentTarget.style.borderColor = 'var(--border-strong)'
-                            e.currentTarget.style.color = 'var(--text-muted)'
-                          }
+                          if (!active) e.currentTarget.style.background = 'transparent'
                         }}
                       >
-                        {label}
+                        {type}
                       </button>
                     )
                   })}
                 </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <p
+                  className="text-[10px] uppercase tracking-widest font-semibold"
+                  style={{ color: 'var(--text-dim)' }}
+                >
+                  Repeats on
+                </p>
+                {repeatFrequency === 'monthly' ? (
+                  <div
+                    className="rounded-md px-2.5 py-2 text-[11px] font-medium"
+                    style={{
+                      background: 'var(--surface-2)',
+                      border: '1px solid var(--border-strong)',
+                      color: 'var(--text)'
+                    }}
+                  >
+                    {formatMonthlyRepeatTarget(selectedDate.getDate())}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    {DOW_LABELS.map((label, idx) => {
+                      const active = repeatDays.includes(idx)
+                      return (
+                        <button
+                          key={idx}
+                          title={DOW_FULL[idx]}
+                          disabled={isBusy}
+                          onClick={() => toggleRepeatDay(idx)}
+                          className="flex items-center justify-center rounded-full text-[11px] font-semibold transition-all duration-100"
+                          style={{
+                            width: 28,
+                            height: 28,
+                            background: active ? 'var(--accent)' : 'var(--surface-2)',
+                            color: active ? 'var(--accent-on)' : 'var(--text-muted)',
+                            border: `1px solid ${active ? 'var(--accent)' : 'var(--border-strong)'}`
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!active) {
+                              e.currentTarget.style.borderColor = 'var(--accent-border)'
+                              e.currentTarget.style.color = 'var(--accent-text)'
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!active) {
+                              e.currentTarget.style.borderColor = 'var(--border-strong)'
+                              e.currentTarget.style.color = 'var(--text-muted)'
+                            }
+                          }}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col gap-1.5">

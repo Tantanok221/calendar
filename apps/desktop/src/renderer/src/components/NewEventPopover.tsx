@@ -18,7 +18,11 @@ import type { RendererCalendar } from '../lib/googleCalendarSync'
 import { getDefaultWritableCalendarId, getWritableCalendars } from '../lib/calendarPermissions'
 import type { CreateCalendarEventDraft } from '../lib/googleCalendarCreate'
 import { buildCreateDraftFromCopiedEvent, isEventPasteShortcut } from '../lib/eventClipboard'
-import type { RepeatEndType } from '../lib/googleCalendarRecurrence'
+import {
+  formatMonthlyRepeatTarget,
+  type RepeatEndType,
+  type RepeatFrequency
+} from '../lib/googleCalendarRecurrence'
 import { shouldSubmitOnEnterKeyDown } from '../lib/keyboardSubmit'
 import { addDays, addMonths, getNextMonday, getToday, useToday } from '../lib/today'
 import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
@@ -27,9 +31,10 @@ import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
 interface TimeInputProps {
   value: string
   onChange: (v: string) => void
+  portalContainer?: HTMLElement | null
 }
 
-function TimeInput({ value, onChange }: TimeInputProps): React.JSX.Element {
+function TimeInput({ value, onChange, portalContainer }: TimeInputProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -98,7 +103,7 @@ function TimeInput({ value, onChange }: TimeInputProps): React.JSX.Element {
         />
       </Popover.Anchor>
 
-      <Popover.Portal>
+      <Popover.Portal container={portalContainer ?? undefined}>
         <Popover.Content
           side="bottom"
           align="center"
@@ -182,9 +187,10 @@ function formatDateLabel(d: Date): string {
 interface DatePickerProps {
   value: Date
   onChange: (d: Date) => void
+  portalContainer?: HTMLElement | null
 }
 
-function DatePicker({ value, onChange }: DatePickerProps): React.JSX.Element {
+function DatePicker({ value, onChange, portalContainer }: DatePickerProps): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const [viewYear, setViewYear] = useState(value.getFullYear())
   const [viewMonth, setViewMonth] = useState(value.getMonth())
@@ -224,7 +230,7 @@ function DatePicker({ value, onChange }: DatePickerProps): React.JSX.Element {
         </button>
       </Popover.Trigger>
 
-      <Popover.Portal>
+      <Popover.Portal container={portalContainer ?? undefined}>
         <Popover.Content
           side="bottom"
           align="start"
@@ -405,6 +411,7 @@ export default function NewEventPopover({
   const [endTime, setEndTime] = useState(() => initialValues?.endTime ?? '11:00 AM')
   const [calendarId, setCalendarId] = useState(() => getDefaultWritableCalendarId(calendars))
   const [repeat, setRepeat] = useState(false)
+  const [repeatFrequency, setRepeatFrequency] = useState<RepeatFrequency>('weekly')
   const [repeatDays, setRepeatDays] = useState<number[]>([])
   const [repeatEndType, setRepeatEndType] = useState<RepeatEndType>('date')
   const [repeatUntil, setRepeatUntil] = useState(() =>
@@ -414,6 +421,7 @@ export default function NewEventPopover({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const popoverLayerRef = useRef<HTMLDivElement>(null)
 
   const DOW_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
   const DOW_FULL = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -505,6 +513,7 @@ export default function NewEventPopover({
         calendarName: selectedCalendar.name,
         color: selectedCalendar.color,
         repeat,
+        repeatFrequency,
         repeatDays,
         repeatEndType,
         repeatUntil,
@@ -697,7 +706,11 @@ export default function NewEventPopover({
           {/* ── Date row ── */}
           <div className="flex items-center gap-3 px-4 py-2">
             <CalendarBlank size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-            <DatePicker value={selectedDate} onChange={setSelectedDate} />
+            <DatePicker
+              value={selectedDate}
+              onChange={setSelectedDate}
+              portalContainer={popoverLayerRef.current}
+            />
           </div>
 
           {/* ── Time row ── */}
@@ -705,11 +718,19 @@ export default function NewEventPopover({
             <div className="flex items-center gap-2 px-4 pb-2.5">
               <Clock size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
               <div className="flex items-center gap-2">
-                <TimeInput value={startTime} onChange={setStartTime} />
+                <TimeInput
+                  value={startTime}
+                  onChange={setStartTime}
+                  portalContainer={popoverLayerRef.current}
+                />
                 <span className="text-[11px]" style={{ color: 'var(--text-dim)' }}>
                   →
                 </span>
-                <TimeInput value={endTime} onChange={setEndTime} />
+                <TimeInput
+                  value={endTime}
+                  onChange={setEndTime}
+                  portalContainer={popoverLayerRef.current}
+                />
               </div>
             </div>
           )}
@@ -774,7 +795,42 @@ export default function NewEventPopover({
               className="mx-4 mb-3 rounded-lg flex flex-col gap-3 p-3"
               style={{ background: 'var(--surface-3)', border: '1px solid var(--border)' }}
             >
-              {/* Day-of-week selector */}
+              <div className="flex flex-col gap-1.5">
+                <p
+                  className="text-[10px] uppercase tracking-widest font-semibold"
+                  style={{ color: 'var(--text-dim)' }}
+                >
+                  Frequency
+                </p>
+                <div
+                  className="flex items-center rounded-md overflow-hidden"
+                  style={{ border: '1px solid var(--border-strong)', width: 'fit-content' }}
+                >
+                  {(['weekly', 'monthly'] as RepeatFrequency[]).map((type) => {
+                    const active = repeatFrequency === type
+                    return (
+                      <button
+                        key={type}
+                        onClick={() => setRepeatFrequency(type)}
+                        className="px-3 py-1 text-[11px] font-medium capitalize transition-colors"
+                        style={{
+                          background: active ? 'var(--accent)' : 'transparent',
+                          color: active ? 'var(--accent-on)' : 'var(--text-muted)'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!active) e.currentTarget.style.background = 'var(--surface-2)'
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!active) e.currentTarget.style.background = 'transparent'
+                        }}
+                      >
+                        {type}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
               <div className="flex flex-col gap-1.5">
                 <p
                   className="text-[10px] uppercase tracking-widest font-semibold"
@@ -782,41 +838,54 @@ export default function NewEventPopover({
                 >
                   Repeats on
                 </p>
-                <div className="flex items-center gap-1">
-                  {DOW_LABELS.map((label, idx) => {
-                    const active = repeatDays.includes(idx)
-                    return (
-                      <button
-                        key={idx}
-                        title={DOW_FULL[idx]}
-                        disabled={isSubmitting}
-                        onClick={() => toggleRepeatDay(idx)}
-                        className="flex items-center justify-center rounded-full text-[11px] font-semibold transition-all duration-100"
-                        style={{
-                          width: 28,
-                          height: 28,
-                          background: active ? 'var(--accent)' : 'var(--surface-2)',
-                          color: active ? 'var(--accent-on)' : 'var(--text-muted)',
-                          border: `1px solid ${active ? 'var(--accent)' : 'var(--border-strong)'}`
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!active) {
-                            e.currentTarget.style.borderColor = 'var(--accent-border)'
-                            e.currentTarget.style.color = 'var(--accent-text)'
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!active) {
-                            e.currentTarget.style.borderColor = 'var(--border-strong)'
-                            e.currentTarget.style.color = 'var(--text-muted)'
-                          }
-                        }}
-                      >
-                        {label}
-                      </button>
-                    )
-                  })}
-                </div>
+                {repeatFrequency === 'monthly' ? (
+                  <div
+                    className="rounded-md px-2.5 py-2 text-[11px] font-medium"
+                    style={{
+                      background: 'var(--surface-2)',
+                      border: '1px solid var(--border-strong)',
+                      color: 'var(--text)'
+                    }}
+                  >
+                    {formatMonthlyRepeatTarget(selectedDate.getDate())}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    {DOW_LABELS.map((label, idx) => {
+                      const active = repeatDays.includes(idx)
+                      return (
+                        <button
+                          key={idx}
+                          title={DOW_FULL[idx]}
+                          disabled={isSubmitting}
+                          onClick={() => toggleRepeatDay(idx)}
+                          className="flex items-center justify-center rounded-full text-[11px] font-semibold transition-all duration-100"
+                          style={{
+                            width: 28,
+                            height: 28,
+                            background: active ? 'var(--accent)' : 'var(--surface-2)',
+                            color: active ? 'var(--accent-on)' : 'var(--text-muted)',
+                            border: `1px solid ${active ? 'var(--accent)' : 'var(--border-strong)'}`
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!active) {
+                              e.currentTarget.style.borderColor = 'var(--accent-border)'
+                              e.currentTarget.style.color = 'var(--accent-text)'
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!active) {
+                              e.currentTarget.style.borderColor = 'var(--border-strong)'
+                              e.currentTarget.style.color = 'var(--text-muted)'
+                            }
+                          }}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* End condition */}
@@ -862,7 +931,11 @@ export default function NewEventPopover({
                     <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
                       Until
                     </span>
-                    <DatePicker value={repeatUntil} onChange={setRepeatUntil} />
+                    <DatePicker
+                      value={repeatUntil}
+                      onChange={setRepeatUntil}
+                      portalContainer={popoverLayerRef.current}
+                    />
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
@@ -955,6 +1028,8 @@ export default function NewEventPopover({
           )}
 
           <div style={{ height: 1, background: 'var(--border)' }} />
+
+          <div ref={popoverLayerRef} data-new-event-popover-layer="" />
 
           {/* ── Footer ── */}
           <div className="flex items-center justify-end gap-2 px-4 py-3">

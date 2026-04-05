@@ -1,7 +1,11 @@
 import type { CalendarEvent } from '../data/events'
 import type { RendererCalendar } from './googleCalendarSync'
 import { getClosestTimeSuggestion } from './timeSuggestions'
-import { buildGoogleCalendarUpdateRecurrence, type RepeatEndType } from './googleCalendarRecurrence'
+import {
+  buildGoogleCalendarUpdateRecurrence,
+  type RepeatEndType,
+  type RepeatFrequency
+} from './googleCalendarRecurrence'
 
 export interface EventDetailDraft {
   title: string
@@ -15,6 +19,7 @@ export interface EventDetailDraft {
   color: RendererCalendar['color']
   repeatChanged: boolean
   repeat: boolean
+  repeatFrequency: RepeatFrequency
   repeatDays: number[]
   repeatEndType: RepeatEndType
   repeatUntil: Date

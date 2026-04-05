@@ -6,7 +6,7 @@ import {
   type GoogleCalendarRepeatDraft
 } from './googleCalendarRecurrence'
 
-export type { RepeatEndType } from './googleCalendarRecurrence'
+export type { RepeatEndType, RepeatFrequency } from './googleCalendarRecurrence'
 
 export interface CreateCalendarEventDraft extends GoogleCalendarRepeatDraft {
   title: string
@@ -111,6 +111,10 @@ function getOccurrenceDates(draft: CreateCalendarEventDraft): Date[] {
     return [normalizeDate(draft.selectedDate)]
   }
 
+  if (draft.repeatFrequency === 'monthly') {
+    return getMonthlyOccurrenceDates(draft)
+  }
+
   const selectedDate = normalizeDate(draft.selectedDate)
   const activeDays = getRepeatDayIndexes(draft)
   const dates: Date[] = []
@@ -130,6 +134,37 @@ function getOccurrenceDates(draft: CreateCalendarEventDraft): Date[] {
     }
 
     dates.push(new Date(cursor))
+
+    if (draft.repeatEndType === 'count' && dates.length >= Math.max(1, draft.repeatCount)) {
+      break
+    }
+  }
+
+  return dates
+}
+
+function getMonthlyOccurrenceDates(draft: CreateCalendarEventDraft): Date[] {
+  const selectedDate = normalizeDate(draft.selectedDate)
+  const targetDay = selectedDate.getDate()
+  const dates: Date[] = []
+  const untilDate = draft.repeatEndType === 'date' ? normalizeDate(draft.repeatUntil) : null
+
+  for (
+    let monthOffset = 0;
+    dates.length < Math.max(1, draft.repeatCount) || untilDate !== null;
+    monthOffset += 1
+  ) {
+    const date = getMonthlyOccurrenceDate(selectedDate, targetDay, monthOffset)
+
+    if (!date) {
+      continue
+    }
+
+    if (untilDate && date > untilDate) {
+      break
+    }
+
+    dates.push(date)
 
     if (draft.repeatEndType === 'count' && dates.length >= Math.max(1, draft.repeatCount)) {
       break
@@ -189,4 +224,15 @@ function addDays(value: Date, amount: number): Date {
 
 function toMondayBasedDay(value: Date): number {
   return (value.getDay() + 6) % 7
+}
+
+function getMonthlyOccurrenceDate(baseDate: Date, dayOfMonth: number, monthOffset: number): Date | null {
+  const monthStart = new Date(baseDate.getFullYear(), baseDate.getMonth() + monthOffset, 1)
+  const daysInMonth = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0).getDate()
+
+  if (dayOfMonth > daysInMonth) {
+    return null
+  }
+
+  return new Date(monthStart.getFullYear(), monthStart.getMonth(), dayOfMonth)
 }
