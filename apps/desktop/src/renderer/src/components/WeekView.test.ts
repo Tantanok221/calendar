@@ -22,6 +22,31 @@ function renderWeekView(events: CalendarEvent[]): string {
 }
 
 describe('WeekView', () => {
+  test('renders resize handles for the pinned new-event preview', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(WeekView, {
+        events: [],
+        calendars: [],
+        currentDate: new Date('2026-03-31'),
+        today: new Date('2026-03-31'),
+        onDateSelect: () => {},
+        onEventChange: () => {},
+        onEventDelete: () => {},
+        onTimedSelectionCreate: () => {},
+        newEventOpen: true,
+        pinnedSelection: {
+          date: new Date('2026-03-31'),
+          startMinutes: 9 * 60,
+          endMinutes: 10 * 60 + 30
+        },
+        onPinnedSelectionChange: () => {}
+      })
+    )
+
+    expect(html).toContain('new-event-selection-resize-handle-top')
+    expect(html).toContain('new-event-selection-resize-handle-bottom')
+  })
+
   test('keeps all-day and timed columns on the same shrink-safe grid and uses ALL DAY label', () => {
     const html = renderWeekView([
       {

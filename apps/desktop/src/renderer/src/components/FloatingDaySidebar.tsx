@@ -5,6 +5,7 @@ import type { CalendarEvent } from '../data/events'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
 import type { TimedSelectionRange } from '../lib/calendarDrag'
 import type { GoogleCalendarDeleteScope } from '../lib/googleCalendarWriteback'
+import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
 
 interface FloatingDaySidebarProps {
   events: CalendarEvent[]
@@ -13,7 +14,10 @@ interface FloatingDaySidebarProps {
   onClose: () => void
   onEventChange: (event: CalendarEvent) => Promise<void> | void
   onEventDelete: (event: CalendarEvent, scope?: GoogleCalendarDeleteScope) => Promise<void> | void
-  onTimedSelectionCreate: (date: Date, range: TimedSelectionRange) => void
+  onTimedSelectionCreate: (date: Date, range: TimedSelectionRange, anchor: PopoverAnchor) => void
+  newEventOpen?: boolean
+  pinnedSelection?: { date: Date; startMinutes: number; endMinutes: number }
+  onPinnedSelectionChange?: (date: Date, range: TimedSelectionRange) => void
 }
 
 export default function FloatingDaySidebar({
@@ -23,7 +27,10 @@ export default function FloatingDaySidebar({
   onClose,
   onEventChange,
   onEventDelete,
-  onTimedSelectionCreate
+  onTimedSelectionCreate,
+  newEventOpen,
+  pinnedSelection,
+  onPinnedSelectionChange
 }: FloatingDaySidebarProps): React.JSX.Element {
   return (
     <motion.div
@@ -84,6 +91,9 @@ export default function FloatingDaySidebar({
           onTimedSelectionCreate={onTimedSelectionCreate}
           initialScrollAnchor="current-time"
           showHeader={false}
+          newEventOpen={newEventOpen}
+          pinnedSelection={pinnedSelection}
+          onPinnedSelectionChange={onPinnedSelectionChange}
         />
       </div>
     </motion.div>
