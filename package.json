@@ -1,26 +1,28 @@
 {
-  "name": "calendar-monorepo",
+  "name": "stride-monorepo",
   "private": true,
   "version": "1.0.0",
-  "description": "A Bun monorepo for the Calendar desktop app and future packages",
+  "description": "A Bun monorepo for the Stride desktop app and future packages",
   "packageManager": "bun@1.3.10",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
+    "prepare:google-calendar-config": "node ./scripts/embed-google-calendar-config.mjs",
     "format": "prettier --write .",
     "lint": "eslint --cache .",
     "test": "bun test",
-    "typecheck": "bun run --cwd apps/desktop typecheck",
-    "start": "bun run --cwd apps/desktop start",
-    "dev": "bun run --cwd apps/desktop dev",
-    "build": "bun run --cwd apps/desktop build",
+    "typecheck": "bun run prepare:google-calendar-config && bun run --cwd apps/desktop typecheck",
+    "start": "bun run prepare:google-calendar-config && bun run --cwd apps/desktop start",
+    "dev": "bun run prepare:google-calendar-config && bun run --cwd apps/desktop dev",
+    "build": "bun run prepare:google-calendar-config && bun run --cwd apps/desktop build",
     "postinstall": "bun run --cwd apps/desktop postinstall",
-    "build:unpack": "bun run --cwd apps/desktop build:unpack",
-    "build:win": "bun run --cwd apps/desktop build:win",
-    "build:mac": "bun run --cwd apps/desktop build:mac",
-    "build:linux": "bun run --cwd apps/desktop build:linux"
+    "build:unpack": "bun run prepare:google-calendar-config && bun run --cwd apps/desktop build:unpack",
+    "build:win": "bun run prepare:google-calendar-config && bun run --cwd apps/desktop build:win",
+    "build:mac": "bun run prepare:google-calendar-config && bun run --cwd apps/desktop build:mac",
+    "build:linux": "bun run prepare:google-calendar-config && bun run --cwd apps/desktop build:linux",
+    "install:mac": "bash ./scripts/install-current-revision-mac.sh"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",

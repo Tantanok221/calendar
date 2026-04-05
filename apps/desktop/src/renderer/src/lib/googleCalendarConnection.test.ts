@@ -65,6 +65,16 @@ describe('getGoogleCalendarErrorMessage', () => {
     )
   })
 
+  test('unwraps Electron IPC wrapper errors to the root Google Calendar message', () => {
+    expect(
+      getGoogleCalendarErrorMessage(
+        new Error(
+          "Error invoking remote method 'google-calendar:connect': Error: GOOGLE_CALENDAR_CLIENT_ID is not configured"
+        )
+      )
+    ).toBe('GOOGLE_CALENDAR_CLIENT_ID is not configured')
+  })
+
   test('falls back to a generic message for unknown failures', () => {
     expect(getGoogleCalendarErrorMessage('nope')).toBe(
       'Google Calendar sign-in failed. Please try again.'

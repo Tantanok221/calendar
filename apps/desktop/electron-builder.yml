@@ -1,5 +1,5 @@
-appId: com.calendar.desktop
-productName: Calendar
+appId: com.stride.desktop
+productName: Stride
 directories:
   buildResources: build
 files:
@@ -11,8 +11,11 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+extraResources:
+  - from: build/google-calendar-config.json
+    to: google-calendar-config.json
 win:
-  executableName: calendar
+  executableName: stride
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}

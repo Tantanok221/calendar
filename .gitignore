@@ -7,3 +7,4 @@ out
 *.log*
 .env
 .factory/
+apps/desktop/build/google-calendar-config.json
