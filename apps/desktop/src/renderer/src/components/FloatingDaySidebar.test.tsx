@@ -12,6 +12,7 @@ describe('FloatingDaySidebar', () => {
         today={new Date('2026-03-31T12:00:00')}
         onEventChange={() => {}}
         onEventDelete={() => {}}
+        onAllDayCreate={() => {}}
         onTimedSelectionCreate={() => {}}
       />
     )

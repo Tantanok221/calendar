@@ -179,6 +179,15 @@ export function buildTimedDraftFromSelection(
   }
 }
 
+export function buildAllDayDraftFromDate(date: Date): NewEventDraftDefaults {
+  return {
+    selectedDate: new Date(date),
+    allDay: true,
+    startTime: '10:00 AM',
+    endTime: '11:00 AM'
+  }
+}
+
 export function getDateFromColumnIndex(weekStart: Date, columnIndex: number): Date {
   const date = new Date(weekStart)
   date.setDate(weekStart.getDate() + columnIndex)

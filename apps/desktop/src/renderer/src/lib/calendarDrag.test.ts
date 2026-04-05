@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { HOUR_HEIGHT } from '../data/events'
 import type { CalendarEvent } from '../data/events'
 import {
+  buildAllDayDraftFromDate,
   buildAllDayDropSlotId,
   buildTimedDraftFromSelection,
   buildDropSlotId,
@@ -131,6 +132,15 @@ describe('calendar drag helpers', () => {
       allDay: false,
       startTime: '1:30 PM',
       endTime: '3:00 PM'
+    })
+  })
+
+  test('builds new-event modal defaults for an all-day date click', () => {
+    expect(buildAllDayDraftFromDate(new Date(2026, 2, 31))).toEqual({
+      selectedDate: new Date(2026, 2, 31),
+      allDay: true,
+      startTime: '10:00 AM',
+      endTime: '11:00 AM'
     })
   })
 

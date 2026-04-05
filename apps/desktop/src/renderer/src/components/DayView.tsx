@@ -33,6 +33,10 @@ import { buildCalendarHours, formatCalendarHour } from '../lib/calendarHours'
 import type { RendererCalendar } from '../lib/googleCalendarSync'
 import type { GoogleCalendarDeleteScope } from '../lib/googleCalendarWriteback'
 import { getAllDayEventPillMotion } from '../lib/eventMotion'
+import {
+  getVisibleTimedPreviewRange,
+  NEW_EVENT_PREVIEW_SURFACE_STYLE
+} from '../lib/newEventPreviewStyle'
 import { buildTimedEventLayout } from '../lib/timedEventLayout'
 import type { TimedEventLayout } from '../lib/timedEventLayout'
 import { getDayViewInitialScrollTop } from '../lib/today'
@@ -334,9 +338,11 @@ function DropSlot({
 
 function AllDayDropSlot({
   id,
+  onCreate,
   children
 }: {
   id: string
+  onCreate?: (event: React.MouseEvent<HTMLDivElement> | React.KeyboardEvent<HTMLDivElement>) => void
   children: React.ReactNode
 }): React.JSX.Element {
   const { ref, isDropTarget } = useDroppable({ id })
@@ -345,11 +351,22 @@ function AllDayDropSlot({
     <div
       ref={ref}
       className="shrink-0 flex items-center gap-1 px-4 py-2"
+      role={onCreate ? 'button' : undefined}
+      aria-label={onCreate ? 'Create all-day event' : undefined}
+      tabIndex={onCreate ? 0 : undefined}
+      onClick={onCreate}
+      onKeyDown={(event) => {
+        if (!onCreate) return
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        onCreate(event)
+      }}
       style={{
         borderBottom: '1px solid var(--border)',
         background: isDropTarget ? 'rgba(215,206,178,0.10)' : 'var(--surface)',
         outline: isDropTarget ? '1px solid var(--accent-border)' : 'none',
-        outlineOffset: -1
+        outlineOffset: -1,
+        cursor: onCreate ? 'pointer' : undefined
       }}
     >
       {children}
@@ -365,10 +382,12 @@ interface DayViewProps {
   onEventChange: (event: CalendarEvent) => Promise<void> | void
   onEventDelete: (event: CalendarEvent, scope?: GoogleCalendarDeleteScope) => Promise<void> | void
   onCopyEvent?: (event: CalendarEvent) => void
+  onAllDayCreate: (date: Date, anchor: PopoverAnchor) => void
   onTimedSelectionCreate: (date: Date, range: TimedSelectionRange, anchor: PopoverAnchor) => void
   initialScrollAnchor?: 'morning' | 'current-time'
   showHeader?: boolean
   newEventOpen?: boolean
+  allDayPreviewDate?: Date
   pinnedSelection?: { date: Date; startMinutes: number; endMinutes: number }
   onPinnedSelectionChange?: (date: Date, range: TimedSelectionRange) => void
 }
@@ -381,10 +400,12 @@ export default function DayView({
   onEventChange,
   onEventDelete,
   onCopyEvent,
+  onAllDayCreate,
   onTimedSelectionCreate,
   initialScrollAnchor = 'morning',
   showHeader = true,
   newEventOpen,
+  allDayPreviewDate,
   pinnedSelection,
   onPinnedSelectionChange
 }: DayViewProps): React.JSX.Element {
@@ -452,6 +473,15 @@ export default function DayView({
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
     setPopoverAnchor(computeAnchor(rect))
     setSelectedEventId(event.id)
+  }
+
+  const handleAllDayClick = (
+    event: React.MouseEvent<HTMLDivElement> | React.KeyboardEvent<HTMLDivElement>
+  ): void => {
+    if (newEventOpen || draggedEventId) return
+
+    clearSelection()
+    onAllDayCreate(currentDate, computeAnchor(event.currentTarget.getBoundingClientRect()))
   }
 
   const handleDragStart = ({ operation }: DragStartPayload): void => {
@@ -743,6 +773,10 @@ export default function DayView({
   )
   const timedEventLayout = buildTimedEventLayout(displayedTimedEvents)
   const allDayEvents = events.filter((event) => event.date === dayStr && event.allDay)
+  const showAllDayPreview =
+    Boolean(newEventOpen) &&
+    allDayPreviewDate !== undefined &&
+    isSameDay(currentDate, allDayPreviewDate)
   const draggedTimedEvent = draggedEventId
     ? events.find(
         (event) => event.id === draggedEventId && !event.allDay && event.startTime && event.endTime
@@ -830,14 +864,14 @@ export default function DayView({
         )}
 
         {/* All-day strip */}
-        {allDayEvents.length > 0 && (
-          <AllDayDropSlot id={buildAllDayDropSlotId('day', currentDate)}>
-            <span
-              className="text-[10px] uppercase tracking-wider mr-1"
-              style={{ color: 'var(--text-dim)', minWidth: 46 }}
-            >
-              All day
-            </span>
+        <AllDayDropSlot id={buildAllDayDropSlotId('day', currentDate)} onCreate={handleAllDayClick}>
+          <span
+            className="text-[10px] uppercase tracking-wider mr-1"
+            style={{ color: 'var(--text-dim)', minWidth: 46 }}
+          >
+            All day
+          </span>
+          <div className="flex min-w-0 flex-1 items-center gap-1">
             <AnimatePresence>
               {allDayEvents.map((event) => (
                 <DraggableAllDayEventPill
@@ -850,8 +884,20 @@ export default function DayView({
                 />
               ))}
             </AnimatePresence>
-          </AllDayDropSlot>
-        )}
+            {showAllDayPreview && (
+              <div
+                aria-hidden="true"
+                className="new-event-all-day-preview"
+                style={{
+                  flex: 1,
+                  minHeight: 18,
+                  borderRadius: 6,
+                  ...NEW_EVENT_PREVIEW_SURFACE_STYLE
+                }}
+              />
+            )}
+          </div>
+        </AllDayDropSlot>
 
         {/* Time grid */}
         <div className="time-grid-scroll" ref={scrollRef}>
@@ -908,14 +954,16 @@ export default function DayView({
 
               {(() => {
                 const pinnedPreview = newEventOpen && pinnedSelection ? pinnedSelection : null
-                const sel = pinnedPreview
-                  ? pinnedPreview
-                  : timedSelection
+                const sel = getVisibleTimedPreviewRange({
+                  allDayPreviewVisible: showAllDayPreview,
+                  pinnedPreview,
+                  timedSelectionPreview: timedSelection
                     ? {
                         startMinutes: timedSelection.range.startMinutes,
                         endMinutes: timedSelection.range.endMinutes
                       }
                     : null
+                })
                 if (!sel) return null
                 return (
                   <>
@@ -928,10 +976,7 @@ export default function DayView({
                         top: ((sel.startMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT,
                         height: ((sel.endMinutes - sel.startMinutes) / 60) * HOUR_HEIGHT,
                         borderRadius: 4,
-                        background: 'rgba(215,206,178,0.20)',
-                        border: '1px solid var(--accent-border)',
-                        boxShadow: 'inset 0 0 0 1px rgba(215,206,178,0.12)',
-                        pointerEvents: 'none',
+                        ...NEW_EVENT_PREVIEW_SURFACE_STYLE,
                         zIndex: 3
                       }}
                     />

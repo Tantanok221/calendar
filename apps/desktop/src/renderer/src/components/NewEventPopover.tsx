@@ -24,6 +24,7 @@ import {
   type RepeatFrequency
 } from '../lib/googleCalendarRecurrence'
 import { shouldSubmitOnEnterKeyDown } from '../lib/keyboardSubmit'
+import { shouldDismissNewEventPopover } from '../lib/newEventPopoverDismissal'
 import { addDays, addMonths, getNextMonday, getToday, useToday } from '../lib/today'
 import type { PopoverAnchor } from '../lib/eventPopoverAnchor'
 
@@ -105,6 +106,7 @@ function TimeInput({ value, onChange, portalContainer }: TimeInputProps): React.
 
       <Popover.Portal container={portalContainer ?? undefined}>
         <Popover.Content
+          data-new-event-popover-owned=""
           side="bottom"
           align="center"
           sideOffset={4}
@@ -162,6 +164,7 @@ function TimeInput({ value, onChange, portalContainer }: TimeInputProps): React.
 
 // ── DatePicker ──────────────────────────────────────────────────────────────
 const DOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+const OWNED_POPOVER_SELECTOR = '[data-new-event-popover-owned]'
 
 function getMiniGrid(year: number, month: number): (number | null)[] {
   const firstDay = new Date(year, month, 1).getDay()
@@ -232,6 +235,7 @@ function DatePicker({ value, onChange, portalContainer }: DatePickerProps): Reac
 
       <Popover.Portal container={portalContainer ?? undefined}>
         <Popover.Content
+          data-new-event-popover-owned=""
           side="bottom"
           align="start"
           sideOffset={6}
@@ -470,8 +474,17 @@ export default function NewEventPopover({
     if (!open || !anchor) return
 
     const handleMouseDown = (e: MouseEvent): void => {
-      if (isSubmitting) return
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+      const target = e.target instanceof Element ? e.target : null
+      const insidePanel = Boolean(panelRef.current && target && panelRef.current.contains(target))
+      const insideOwnedPopover = Boolean(target?.closest(OWNED_POPOVER_SELECTOR))
+
+      if (
+        shouldDismissNewEventPopover({
+          isSubmitting,
+          insidePanel,
+          insideOwnedPopover
+        })
+      ) {
         onClose()
       }
     }

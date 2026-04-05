@@ -58,6 +58,7 @@ import {
 } from './lib/sidebarSettings'
 import { getToday, useToday } from './lib/today'
 import {
+  buildAllDayDraftFromDate,
   buildTimedDraftFromSelection,
   type NewEventDraftDefaults,
   type TimedSelectionRange
@@ -496,6 +497,17 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
     endTime: string,
     allDay: boolean
   ): void => {
+    setNewEventDefaults((currentDefaults) =>
+      currentDefaults
+        ? {
+            ...currentDefaults,
+            startTime,
+            endTime,
+            allDay
+          }
+        : currentDefaults
+    )
+
     if (allDay || !newEventDefaults?.selectedDate) {
       setNewEventPinnedRange(undefined)
       return
@@ -533,6 +545,10 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
     anchor: PopoverAnchor
   ): void => {
     openNewEvent(buildTimedDraftFromSelection(date, range), anchor)
+  }
+
+  const handleAllDayCreate = (date: Date, anchor: PopoverAnchor): void => {
+    openNewEvent(buildAllDayDraftFromDate(date), anchor)
   }
 
   const handleGoogleCalendarConnect = async (): Promise<void> => {
@@ -626,8 +642,10 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
           onEventChange={handleEventChange}
           onEventDelete={handleEventDelete}
           onCopyEvent={handleCopyEvent}
+          onAllDayCreate={handleAllDayCreate}
           onTimedSelectionCreate={handleTimedSelectionCreate}
           newEventOpen={showNewEvent}
+          allDayPreviewDate={newEventDefaults?.allDay ? newEventDefaults.selectedDate : undefined}
           pinnedSelection={newEventPinnedRange}
           onPinnedSelectionChange={handleNewEventPinnedSelectionChange}
         />
@@ -768,8 +786,12 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
               onEventChange={handleEventChange}
               onEventDelete={handleEventDelete}
               onCopyEvent={handleCopyEvent}
+              onAllDayCreate={handleAllDayCreate}
               onTimedSelectionCreate={handleTimedSelectionCreate}
               newEventOpen={showNewEvent}
+              allDayPreviewDate={
+                newEventDefaults?.allDay ? newEventDefaults.selectedDate : undefined
+              }
               pinnedSelection={newEventPinnedRange}
               onPinnedSelectionChange={handleNewEventPinnedSelectionChange}
             />
@@ -783,8 +805,12 @@ function App({ windowMode = 'main' }: AppProps): React.JSX.Element {
               onEventChange={handleEventChange}
               onEventDelete={handleEventDelete}
               onCopyEvent={handleCopyEvent}
+              onAllDayCreate={handleAllDayCreate}
               onTimedSelectionCreate={handleTimedSelectionCreate}
               newEventOpen={showNewEvent}
+              allDayPreviewDate={
+                newEventDefaults?.allDay ? newEventDefaults.selectedDate : undefined
+              }
               pinnedSelection={newEventPinnedRange}
               onPinnedSelectionChange={handleNewEventPinnedSelectionChange}
             />
