@@ -41,6 +41,7 @@ export function buildCreateDraftFromCopiedEvent(
     calendarName: target.calendarName,
     color: target.color,
     repeat: false,
+    repeatFrequency: 'weekly',
     repeatDays: [],
     repeatEndType: 'date',
     repeatUntil: addMonths(target.selectedDate, 1),

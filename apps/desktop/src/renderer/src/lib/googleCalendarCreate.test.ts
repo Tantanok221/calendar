@@ -16,6 +16,7 @@ const BASE_DRAFT: CreateCalendarEventDraft = {
   calendarName: 'Work',
   color: 'violet',
   repeat: false,
+  repeatFrequency: 'weekly',
   repeatDays: [],
   repeatEndType: 'date',
   repeatUntil: new Date(2026, 3, 30),
@@ -72,6 +73,23 @@ describe('buildGoogleCalendarCreateInput', () => {
       recurrence: ['RRULE:FREQ=WEEKLY;BYDAY=MO,WE;COUNT=5']
     })
   })
+
+  test('builds a monthly recurring Google event payload', () => {
+    expect(
+      buildGoogleCalendarCreateInput(
+        {
+          ...BASE_DRAFT,
+          repeat: true,
+          repeatFrequency: 'monthly',
+          repeatEndType: 'count',
+          repeatCount: 5
+        },
+        'Asia/Kuala_Lumpur'
+      )
+    ).toMatchObject({
+      recurrence: ['RRULE:FREQ=MONTHLY;BYMONTHDAY=30;COUNT=5']
+    })
+  })
 })
 
 describe('buildLocalEventsFromDraft', () => {
@@ -99,5 +117,22 @@ describe('buildLocalEventsFromDraft', () => {
       allDay: false,
       calendar: 'Work'
     })
+  })
+
+  test('expands monthly local events on the same day of month', () => {
+    const events = buildLocalEventsFromDraft({
+      ...BASE_DRAFT,
+      selectedDate: new Date(2026, 0, 31),
+      repeat: true,
+      repeatFrequency: 'monthly',
+      repeatEndType: 'count',
+      repeatCount: 3
+    })
+
+    expect(events.map((event) => event.date)).toEqual([
+      '2026-01-31',
+      '2026-03-31',
+      '2026-05-31'
+    ])
   })
 })

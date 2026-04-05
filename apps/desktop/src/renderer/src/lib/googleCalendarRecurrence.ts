@@ -1,8 +1,10 @@
 export type RepeatEndType = 'date' | 'count'
+export type RepeatFrequency = 'weekly' | 'monthly'
 
 export interface GoogleCalendarRepeatDraft {
   selectedDate: Date
   repeat: boolean
+  repeatFrequency: RepeatFrequency
   repeatDays: number[]
   repeatEndType: RepeatEndType
   repeatUntil: Date
@@ -11,7 +13,9 @@ export interface GoogleCalendarRepeatDraft {
 
 export interface ParsedGoogleCalendarRecurrence {
   repeat: boolean
+  repeatFrequency: RepeatFrequency
   repeatDays: number[]
+  repeatMonthDay: number | null
   repeatEndType: RepeatEndType
   repeatUntil: Date
   repeatCount: number
@@ -28,8 +32,10 @@ export function buildGoogleCalendarRecurrenceRule(
     return undefined
   }
 
-  const byDay = getRepeatDayCodes(draft).join(',')
-  const parts = ['RRULE:FREQ=WEEKLY', `BYDAY=${byDay}`]
+  const parts =
+    draft.repeatFrequency === 'monthly'
+      ? ['RRULE:FREQ=MONTHLY', `BYMONTHDAY=${draft.selectedDate.getDate()}`]
+      : ['RRULE:FREQ=WEEKLY', `BYDAY=${getRepeatDayCodes(draft).join(',')}`]
 
   if (draft.repeatEndType === 'count') {
     parts.push(`COUNT=${Math.max(1, draft.repeatCount)}`)
@@ -66,6 +72,20 @@ export function parseGoogleCalendarRecurrence(
       return result
     }, {})
 
+  if (parts.FREQ === 'MONTHLY') {
+    const repeatMonthDay = parts.BYMONTHDAY ? Number.parseInt(parts.BYMONTHDAY, 10) : null
+
+    if (repeatMonthDay !== null && (!Number.isFinite(repeatMonthDay) || repeatMonthDay < 1)) {
+      return null
+    }
+
+    return buildParsedRecurrence({
+      repeatFrequency: 'monthly',
+      repeatDays: [],
+      repeatMonthDay
+    }, parts)
+  }
+
   if (parts.FREQ !== 'WEEKLY') {
     return null
   }
@@ -76,6 +96,65 @@ export function parseGoogleCalendarRecurrence(
         .filter((index): index is number => index !== undefined)
     : []
 
+  return buildParsedRecurrence(
+    {
+      repeatFrequency: 'weekly',
+      repeatDays,
+      repeatMonthDay: null
+    },
+    parts
+  )
+}
+
+export function formatGoogleCalendarRecurrenceSummary(
+  recurrence: string[] | null | undefined
+): string | null {
+  const parsedRecurrence = parseGoogleCalendarRecurrence(recurrence)
+
+  if (!parsedRecurrence) {
+    return null
+  }
+
+  const frequencyLabel =
+    parsedRecurrence.repeatFrequency === 'monthly'
+      ? parsedRecurrence.repeatMonthDay
+        ? `monthly on the ${formatOrdinal(parsedRecurrence.repeatMonthDay)}`
+        : 'monthly'
+      : (() => {
+          const repeatDays = parsedRecurrence.repeatDays.map((day) => DAY_LABELS[day] ?? 'Mon')
+          const dayLabel = repeatDays.length > 0 ? repeatDays.join(', ') : 'week'
+          return `every ${dayLabel}`
+        })()
+
+  if (parsedRecurrence.repeatEndType === 'count') {
+    return `Repeats ${frequencyLabel} · ${parsedRecurrence.repeatCount} times`
+  }
+
+  return `Repeats ${frequencyLabel} until ${formatSummaryDate(parsedRecurrence.repeatUntil)}`
+}
+
+export function formatMonthlyRepeatTarget(dayOfMonth: number): string {
+  return `On the ${formatOrdinal(dayOfMonth)} of each month`
+}
+
+function getRepeatDayCodes(draft: GoogleCalendarRepeatDraft): string[] {
+  return getRepeatDayIndexes(draft).map((index) => RRULE_BYDAY[index] ?? 'MO')
+}
+
+function getRepeatDayIndexes(draft: GoogleCalendarRepeatDraft): number[] {
+  const selectedDay = toMondayBasedDay(draft.selectedDate)
+  const uniqueSortedDays = [...new Set(draft.repeatDays)].sort((left, right) => left - right)
+
+  return uniqueSortedDays.length > 0 ? uniqueSortedDays : [selectedDay]
+}
+
+function buildParsedRecurrence(
+  recurrence: Pick<
+    ParsedGoogleCalendarRecurrence,
+    'repeatFrequency' | 'repeatDays' | 'repeatMonthDay'
+  >,
+  parts: Record<string, string>
+): ParsedGoogleCalendarRecurrence | null {
   if (parts.COUNT) {
     const repeatCount = Number.parseInt(parts.COUNT, 10)
 
@@ -85,7 +164,7 @@ export function parseGoogleCalendarRecurrence(
 
     return {
       repeat: true,
-      repeatDays,
+      ...recurrence,
       repeatEndType: 'count',
       repeatUntil: new Date(),
       repeatCount
@@ -104,41 +183,11 @@ export function parseGoogleCalendarRecurrence(
 
   return {
     repeat: true,
-    repeatDays,
+    ...recurrence,
     repeatEndType: 'date',
     repeatUntil,
     repeatCount: 4
   }
-}
-
-export function formatGoogleCalendarRecurrenceSummary(
-  recurrence: string[] | null | undefined
-): string | null {
-  const parsedRecurrence = parseGoogleCalendarRecurrence(recurrence)
-
-  if (!parsedRecurrence) {
-    return null
-  }
-
-  const repeatDays = parsedRecurrence.repeatDays.map((day) => DAY_LABELS[day] ?? 'Mon')
-  const dayLabel = repeatDays.length > 0 ? repeatDays.join(', ') : 'week'
-
-  if (parsedRecurrence.repeatEndType === 'count') {
-    return `Repeats every ${dayLabel} · ${parsedRecurrence.repeatCount} times`
-  }
-
-  return `Repeats every ${dayLabel} until ${formatSummaryDate(parsedRecurrence.repeatUntil)}`
-}
-
-function getRepeatDayCodes(draft: GoogleCalendarRepeatDraft): string[] {
-  return getRepeatDayIndexes(draft).map((index) => RRULE_BYDAY[index] ?? 'MO')
-}
-
-function getRepeatDayIndexes(draft: GoogleCalendarRepeatDraft): number[] {
-  const selectedDay = toMondayBasedDay(draft.selectedDate)
-  const uniqueSortedDays = [...new Set(draft.repeatDays)].sort((left, right) => left - right)
-
-  return uniqueSortedDays.length > 0 ? uniqueSortedDays : [selectedDay]
 }
 
 function formatUntilDate(value: Date): string {
@@ -166,4 +215,27 @@ function formatSummaryDate(value: Date): string {
     day: 'numeric',
     year: 'numeric'
   })
+}
+
+function formatOrdinal(value: number): string {
+  const remainder = value % 10
+  const teen = value % 100
+
+  if (teen >= 11 && teen <= 13) {
+    return `${value}th`
+  }
+
+  if (remainder === 1) {
+    return `${value}st`
+  }
+
+  if (remainder === 2) {
+    return `${value}nd`
+  }
+
+  if (remainder === 3) {
+    return `${value}rd`
+  }
+
+  return `${value}th`
 }
