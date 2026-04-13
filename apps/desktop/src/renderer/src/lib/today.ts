@@ -81,19 +81,35 @@ export function useToday(): Date {
   useEffect(() => {
     let timeoutId: number | undefined
 
+    const updateToday = (): void => {
+      setToday(getToday())
+    }
+
     const scheduleNextUpdate = (): void => {
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId)
+      }
       timeoutId = window.setTimeout(() => {
-        setToday(getToday())
+        updateToday()
         scheduleNextUpdate()
       }, getMillisecondsUntilNextDay())
     }
 
+    const handleVisibilityChange = (): void => {
+      if (document.visibilityState === 'visible') {
+        updateToday()
+        scheduleNextUpdate()
+      }
+    }
+
     scheduleNextUpdate()
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       if (timeoutId !== undefined) {
         window.clearTimeout(timeoutId)
       }
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
 
